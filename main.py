@@ -5,7 +5,7 @@ import bin_to_jpeg as BinToJPEG
 
 def main():
   # Hardcoded file path
-  file_name = r"bin_images\input01.bin"  # Replace with your file path
+  file_name = r"bin_images\IMG_1006-1.bin"  # Replace with your file path
 
   # Create an instance of the BinToJPEG converter
   converter = BinToJPEG.BinToJPEG()
