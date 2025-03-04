@@ -1,43 +1,49 @@
 import os
-import sys
-
-import numpy as np
-from PIL import Image
 
 class BinToJPEG:
-    def __init__(self, width=720, height=480, channels=3):
-        self.width = width
-        self.height = height
-        self.channels = channels
+    def __init__(self):
+        pass
 
-    def convert(self, input_file, output_file):
-        """Reads a binary file, converts it to an image, and saves it as a JPEG."""
+    def extract_jpg_image(self, input_file):
+        """
+        Extracts a JPG image from a binary file and saves it to the 'Images' folder.
+        
+        :param input_file: Path to the input binary file.
+        """
         try:
-            with open(input_file, "rb") as f:
-                d = np.fromfile(f, dtype=np.uint8, count=self.width * self.height * self.channels)
+            # Define the output directory
+            output_dir = os.path.join(os.getcwd(), "Images")
+            os.makedirs(output_dir, exist_ok=True)
 
-            # Ensure correct shape
-            if d.size != self.width * self.height * self.channels:
-                raise ValueError("File size does not match expected dimensions for an RGB image.")
+            # JPG start and end markers
+            jpg_byte_start = b'\xff\xd8'
+            jpg_byte_end = b'\xff\xd9'
+            jpg_image = bytearray()
 
-            d = d.reshape((self.height, self.width, self.channels))
+            # Read the binary file
+            with open(input_file, 'rb') as f:
+                req_data = f.read()
 
-            # Convert to PIL Image and save as JPEG
-            image = Image.fromarray(d, mode="RGB")
-            # output_path = os.path.join(os.getcwd(), output_file)
-            output_path = "C:\COMP_SLIP-GS\ground_station"
-            image.save(output_path, format="JPEG")
+                # Find the start of the JPG image
+                start = req_data.find(jpg_byte_start)
+                if start == -1:
+                    print('Could not find JPG start of image marker!')
+                    return
 
-            print(f"Image saved successfully at: {output_path}")
+                # Find the end of the JPG image
+                end = req_data.find(jpg_byte_end, start) + len(jpg_byte_end)
+                jpg_image += req_data[start:end]
+
+                print(f'Size: {end - start} bytes')
+
+            # Save the extracted JPG image to the 'Images' folder
+            output_file = os.path.join(output_dir, f'{os.path.basename(input_file)}.jpg')
+            with open(output_file, 'wb') as f:
+                f.write(jpg_image)
+
+            print(f"Image saved successfully at: {output_file}")
 
         except FileNotFoundError:
             print(f"Error: '{input_file}' file not found.")
-        except ValueError as e:
-            print(f"Error: {e}")
         except Exception as e:
             print(f"Unexpected error: {e}")
-
-# Example usage
-if __name__ == "__main__":
-    converter = BinToJPEG()
-    converter.convert()
