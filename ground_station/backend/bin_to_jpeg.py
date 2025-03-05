@@ -11,6 +11,9 @@ class BinToJPEG:
         :param input_file: Path to the input binary file.
         """
         try:
+            # Ensure input file exists
+            assert os.path.isfile(input_file), f"File '{input_file}' does not exist."
+
             # Define the output directory
             output_dir = os.path.join(os.getcwd(), "Images")
             os.makedirs(output_dir, exist_ok=True)
@@ -24,17 +27,19 @@ class BinToJPEG:
             with open(input_file, 'rb') as f:
                 req_data = f.read()
 
-                # Find the start of the JPG image
-                start = req_data.find(jpg_byte_start)
-                if start == -1:
-                    print('Could not find JPG start of image marker!')
-                    return
+            # Find the start of the JPG image
+            start = req_data.find(jpg_byte_start)
+            assert start != -1, "Could not find JPG start of image marker!"
 
-                # Find the end of the JPG image
-                end = req_data.find(jpg_byte_end, start) + len(jpg_byte_end)
-                jpg_image += req_data[start:end]
+            # Find the end of the JPG image
+            end = req_data.find(jpg_byte_end, start)
+            assert end != -1, "Could not find JPG end of image marker!"
 
-                print(f'Size: {end - start} bytes')
+            end += len(jpg_byte_end)
+            jpg_image += req_data[start:end]
+
+            print(f'Size: {end - start} bytes')
+            assert len(jpg_image) > 0, "Extracted image size is zero!"
 
             # Save the extracted JPG image to the 'Images' folder
             output_file = os.path.join(output_dir, f'{os.path.basename(input_file)}.jpg')
@@ -43,6 +48,8 @@ class BinToJPEG:
 
             print(f"Image saved successfully at: {output_file}")
 
+        except AssertionError as error:
+            print(f"Assertion Error: {error}")
         except FileNotFoundError:
             print(f"Error: '{input_file}' file not found.")
         except Exception as e:
