@@ -14,6 +14,7 @@ class BinToJPEG:
             # Ensure input file exists
             assert os.path.isfile(input_file), f"File '{input_file}' does not exist."
 
+
             # Define the output directory
             output_dir = os.path.join(os.getcwd(), "Images")
             os.makedirs(output_dir, exist_ok=True)
