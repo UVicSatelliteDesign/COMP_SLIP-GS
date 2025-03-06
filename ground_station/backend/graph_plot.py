@@ -15,8 +15,8 @@ class ExpandingGraph:
         self.x_path = os.path.join(DATABASE_DIR, x_file)
         self.y_path = os.path.join(DATABASE_DIR, y_file)
 
-        self.x_data = []
-        self.y_data = []
+        self.x_data = [] #initialize x_data and y_data
+        self.y_data = [] 
 
         self.fig, self.ax = plt.subplots()
         self.line, = self.ax.plot([], [], 'r-', label=y_label)  # Red line plot
