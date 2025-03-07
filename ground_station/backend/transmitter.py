@@ -1,5 +1,6 @@
 '''Imports'''
-import zlib
+from zlib import crc32
+import json
 
 '''Global variables'''
 PAYLOAD_TYPE_LIST = ['POWER', 'PICTURE', 'RESET'] 
@@ -14,9 +15,6 @@ class GroundStationTransmitter():
     def __init__(self, payload, payload_type):
         self.payload = payload
         self.payload_type = payload_type #Identifies the command type
-
-
-
     
     def construct_packet(self):
 
@@ -53,7 +51,7 @@ class GroundStationTransmitter():
         }
         '''
 
-        payload_length = len(self.payload)
+        payload_length = len(json.dumps(self.payload)) # Convert dict to json to later store data in bytes
 
         #Contains metadata about the payload
         payload_header = self.payload["header"]
@@ -74,7 +72,7 @@ class GroundStationTransmitter():
         :return: A 32-bit integer representing the CRC32 checksum.
         '''
 
-        return zlib.crc32(data)
+        return crc32(data)
     
     def transmit_packet(self, transmit_func):
         '''
@@ -87,6 +85,8 @@ class GroundStationTransmitter():
             transmit_func(packet)
         except MaxTransmissionReachedException as e:
             print(f"Transmission failed after maximum attempts: {e}")
+        except IncorrectPayloadTypeException as e:
+            print(f"Incorrect payload type {e}")
 
 
 def transmit_func(data: bytes):
