@@ -29,6 +29,10 @@ class ExpandingGraph:
         assert os.path.exists(self.x_path), f"Error: {self.x_path} does not exist!"
         assert os.path.exists(self.y_path), f"Error: {self.y_path} does not exist!"
 
+    def get_title(self):
+        """Getter function for the title."""
+        return self._title
+
     def update_plot(self, frame):
         """Updates the graph dynamically by reading the latest CSV data."""
         try:
