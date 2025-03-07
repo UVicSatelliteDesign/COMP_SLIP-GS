@@ -33,7 +33,7 @@ class MainWindow(QMainWindow):
 
             # Status Section
             status_label = QLabel("Status")
-            status_value = QLabel("recieve power level")
+            status_value = QLabel("receive power level")
             left_panel.addWidget(status_label)
             left_panel.addWidget(status_value)
 
