@@ -1,11 +1,20 @@
 #!/usr/bin/env python
 import sys
 import struct
+# Import zlib
 
 """
 TODO: Define what type of data is being sent {Ack, Status}
 TODO: Ensure proper testing 
+TODO: Add a couple of asserts (try catch blocks)
+TODO: Implement CRC (Data integrity), 
+TODO: If packet is received, either send acknowledge or send error, 
 """
+
+# Global Variables
+ACK_FLAG=0 # 2: No packet received, 1: Acknowledge packet, 0: Incorrect packet
+PAYLOAD_TYPE_LIST = ['POWER', 'PICTURE', 'RESET']  # Data type in the payload  
+G = 1001 # G(x)= X^3 + 1 Generator for CRC parity checking 
 
 class GroundStationReceiver():
     def __init__(self, args):
@@ -25,7 +34,8 @@ class GroundStationReceiver():
 
     def parse_packet(self, packet):
         '''
-        Process data; raise errors if something wrong
+        Process data; raise errors if something wrong, if not then set flag to indicate 
+        that acknowledgment should be sent.
         '''
         # Extract header.
         header = PackageHeader.unpack(packet)
@@ -35,6 +45,7 @@ class GroundStationReceiver():
             raise ValueError("Payload length mismatch")
         return header, payload
 
+    # TODO: Remove this routine
     def send(self, response_payload):
         '''
         Flags, acknowledgement, other stuff...
@@ -46,17 +57,20 @@ class GroundStationReceiver():
         return packet
 
 class PackageHeader():
-    HEADER_FORMAT = '!BHI'  # flag (B), type_id (H), length (I)
+    HEADER_FORMAT = '!BHI'  # flag (B), type_id (H), length (I) (ALways do big endian)
     HEADER_SIZE = struct.calcsize(HEADER_FORMAT)
 
+    # TODO: put flag at the end 
     def __init__(self, flag=0, type_id=0, length=0):
         self.flag = flag
         self.type_id = type_id
         self.length = length
 
+    # TODO: Remove this 
     def pack(self):
         # Pack the header fields into bytes.
-        return struct.pack(PackageHeader.HEADER_FORMAT, self.flag, self.type_id, self.length)
+        # TODO: make flag at the end of package header
+        return struct.pack(PackageHeader.HEADER_FORMAT, self.type_id, self.length, self.flag)
 
     @classmethod
     def unpack(cls, data):
@@ -66,10 +80,7 @@ class PackageHeader():
         flag, type_id, length = struct.unpack(cls.HEADER_FORMAT, data[:cls.HEADER_SIZE])
         return cls(flag, type_id, length)
 
-def acknowledgement():
-    # Return an acknowledgement payload.
-    return b"ACK"
-
+# TODO: Remove main, receive function
 def main():
     """
     This is the main function for the ReceiverClass module.
