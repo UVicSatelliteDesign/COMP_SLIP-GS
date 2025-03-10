@@ -67,3 +67,11 @@ class GraphDisplayLayout(QWidget):
             compatible_graphs.append(compatible_graph)
         
         return tuple(compatible_graphs)
+    
+
+    def closeEvent(self, event):
+        """
+        Steps to complete before closing.
+        """
+        self.graphs_display.stop_threads()
+        return super().closeEvent(event)

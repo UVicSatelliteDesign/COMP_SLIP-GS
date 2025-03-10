@@ -53,6 +53,17 @@ class GraphDisplayArea(QWidget):
             self.background_threads.submit(self.auto_update, graph)
         except Exception as e:
             print(f"Unexpected exception {e} occured.")
+    
+
+    def stop_threads(self):
+        """
+        Stops the threads running in the background which are parallelly updating graphs. 
+        """
+        try:
+            self.background_threads.shutdown(wait = True)   # Wait for all threads to finish
+            self.background_threads = ThreadPoolExecutor()  # Reset background_threads for reuse
+        except Exception as e:
+            print(f"Unexpected exception {e} occured.")
 
 
     def add_graph(self,
