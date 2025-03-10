@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QApplication
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout
 
 from graph_display_button import GraphDisplayButton
 from graph_display_area import GraphDisplayArea
@@ -7,26 +7,27 @@ from graph_wrapper_class import GraphWrapperClass
 
 class GraphDisplayLayout(QWidget):
     def __init__(self,
-                 graphs: tuple,
-                 w: int,
-                 h: int,
-                 frame_rate: int = 30,
+                 graphs: list[ExpandingGraph],
+                 w: int = 1200,
+                 h: int = 800,
+                 update_interval: int = 1000,
                  parent: QWidget | None = None):
         """
         Graph display layout consisting of buttons to toggle between different graphs, and a 
         common graph display area which switches the graph displayed depending on which button is 
         pressed.
         
-        :param graphs: Tuple containing graph objects.
-        :param w: Width of graph area.
-        :param h: Height of graph area.
-        :param frame_rate: Frame rate of updating graphs (optional). Default is 30 FPS
-        :param parent: Parent of graph display layout (optional).
+        :param graphs: List containing `ExpandingGraph` objects.
+        :param w: Width of display area (optional). Default is `1200`px.
+        :param h: Height of display area (optional). Default is `800`px.
+        :param update_interval: ms after which graph auto-updates (optional). Default is `1000`ms.
+        :param parent: Parent of graph display layout (optional). Default is `None`
         """
         super().__init__(parent)
 
+        self.update_interval = update_interval
         self.graphs = self.make_compatible(graphs)
-        self.graphs_display = GraphDisplayArea(w, h, frame_rate)
+        self.graphs_display = GraphDisplayArea(w, h, self)
 
         layout = QVBoxLayout()
 
@@ -52,7 +53,7 @@ class GraphDisplayLayout(QWidget):
     
 
     def make_compatible(self,
-                        graphs: tuple) -> tuple[GraphWrapperClass]:
+                        graphs: list[ExpandingGraph]) -> tuple[GraphWrapperClass]:
         """
         Converts graph to a widget so it can be displayed.
 
@@ -62,7 +63,7 @@ class GraphDisplayLayout(QWidget):
         compatible_graphs = []
 
         for i in range(0, len(graphs)):
-            compatible_graph = GraphWrapperClass(graphs[i], i+1)
+            compatible_graph = GraphWrapperClass(graphs[i], i+1, self.update_interval)
             compatible_graphs.append(compatible_graph)
         
         return tuple(compatible_graphs)

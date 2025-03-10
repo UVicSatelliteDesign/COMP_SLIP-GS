@@ -1,36 +1,47 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel
-from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QWidget, QVBoxLayout
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 
 
 class GraphWrapperClass(QWidget):
     def __init__(self, 
-                 graph,
+                 graph: ExpandingGraph,
                  id: int,
+                 update_interval: int = 1000,
                  parent: QWidget | None = None):
         """
         Wrapper class to wrap graph as a QWidget so that it can be displayed.
+
+        :param graph: `ExpandingGraph` object which plots the graph.
+        :param id: ID of the graph.
+        :param update_interval: ms after which graph auto-updates (optional). Default is `1000`ms.
+        :param parent: Parent of the widget (optional). Default is `None`.
         """
         super().__init__(parent)
 
         self.id = id
-        self.placeholder()  # Placeholder display till class plotting graphs is defined
-        #TODO: Implement once class plotting graphs is defined
+        self.graph = graph
+        self.update_interval = update_interval
+
+        layout = QVBoxLayout()
+        canvas = FigureCanvas(graph.fig)
+
+        layout.addWidget(canvas)
+
+        self.setLayout(layout)
 
 
-    def update_graph(self):
+    def auto_update_graph(self):
         """
-        Updates values on graph
+        Updates values on graph.
         """
-        #TODO: Implement once class plotting graphs is defined
-        print("update_graph() function called") #Placeholder till  class plotting graphs is defined
+        self.graph.start_animation(self.update_interval)
 
 
     def get_title(self):
         """
-        Returns title of graph
+        Returns title of graph.
         """
-        #TODO: Implement once class plotting graphs is defined
-        return f"Graph {self.id}"
+        return self.graph.get_title()
     
 
     def get_id(self):
@@ -38,19 +49,3 @@ class GraphWrapperClass(QWidget):
         Returns ID of graph.
         """
         return self.id
-    
-
-    def placeholder(self):
-        """
-        Placeholder display till class plotting graphs is defined
-        """
-        layout = QVBoxLayout()
-
-        label = QLabel(f"Graph {self.id}", self)
-        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        label.setStyleSheet("color: black")
-
-        layout.addWidget(label)
-        self.setLayout(layout)
-
-        self.setStyleSheet("background-color: white")
