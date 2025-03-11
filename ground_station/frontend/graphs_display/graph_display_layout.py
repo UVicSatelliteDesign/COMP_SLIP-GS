@@ -45,7 +45,7 @@ class GraphDisplayLayout(QWidget):
 
         for graph in self.graphs:
             self.graphs_display.add_graph(graph)
-            button = GraphDisplayButton(graph.get_title(),
+            button = GraphDisplayButton(graph.get_title().replace(" ","\n"),
                                         self.graphs_display, graph.get_id(), self)
             layout.addWidget(button)
 
