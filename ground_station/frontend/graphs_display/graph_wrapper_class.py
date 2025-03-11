@@ -37,14 +37,14 @@ class GraphWrapperClass(QWidget):
         self.graph.start_animation(self.update_interval)
 
 
-    def get_title(self):
+    def get_title(self) -> str:
         """
         Returns title of graph.
         """
         return self.graph.get_title()
     
 
-    def get_id(self):
+    def get_id(self) -> int:
         """
         Returns ID of graph.
         """
