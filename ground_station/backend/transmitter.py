@@ -3,10 +3,8 @@ from zlib import crc32
 import json
 
 '''Global variables'''
-PAYLOAD_TYPE_LIST = ['POWER', 'PICTURE', 'RESET'] 
-SENDER_ADDRESS = ""
-DESTINATION_ADDRESS = ""
-MAX_TRANSMISSION_LIMIT = 30 #dummy value
+PAYLOAD_TYPE_LIST = [b"POWER", b"PICTURE", b"RESET"] 
+MAX_TRANSMISSION_LIMIT = 5 #dummy value small for testing
 
 
 
@@ -14,15 +12,13 @@ class GroundStationTransmitter():
 
     def __init__(self, payload, payload_type):
         self.payload = payload
+        self.eof_bit = 0 
         self.payload_type = payload_type #Identifies the command type
+        self.src_address = b"source address"
+        self.dst_address = b"destination address"
     
     def construct_packet(self):
-
-        # TODO check if payload_type is in the 3-bit list
-        if self.payload_type not in PAYLOAD_TYPE_LIST:
-            raise IncorrectPayloadTypeException
-
-        # Ideal Payload structure(All other fields will have default values)
+        # Ideal Payload structure BYTES(All other fields will have default values)
 
         #Acknowleadgement ACK -> Acknowledged, NACK -> Negative Acknowledgement
 
@@ -50,18 +46,24 @@ class GroundStationTransmitter():
         "ackowledgement": ACK/NACK
         }
         '''
+        # TODO check if payload_type is in the 3-bit list
+        if self.payload_type not in PAYLOAD_TYPE_LIST:
+            raise IncorrectPayloadTypeException
+        
+        payload_length = len(self.payload)
 
-        payload_length = len(json.dumps(self.payload)) # Convert dict to json to later store data in bytes
+        #Construct packet header (Metadata)
+        packet_header = 0XAA  #Preamble(denotes the starting of a packet)
+        packet_header += self.payload_type
+        packet_header += payload_length
+        packet_header += self.src_address
+        packet_header += self.dst_address
 
-        #Contains metadata about the payload
-        payload_header = self.payload["header"]
-
-        #Calculate Checksum
-        crc_value = self.payload["r_bits"]
-        crc_check_sum = self.check_sum(crc_value)
+        #Calculate Checksum on the entire payload
+        crc_check_sum = self.check_sum(self.payload_type + self.payload)
 
         #Construct packet
-        packet = bytes([self.header, self.payload_type, payload_length, crc_check_sum, self.payload])
+        packet = bytes([packet_header, self.payload, crc_check_sum, self.eof_bit])
 
         return packet
 
