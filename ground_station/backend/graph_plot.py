@@ -13,9 +13,11 @@ class ExpandingGraph:
     def __init__(self, x_file, y_file, x_label, y_label, title):
         self.x_path = os.path.join(DATABASE_DIR, x_file)
         self.y_path = os.path.join(DATABASE_DIR, y_file)
+        self.x_label = x_label  # Store x_label for column selection
+        self.y_label = y_label  # Store y_label for column selection
 
-        self.x_data = [] #initialize x_data and y_data
-        self.y_data = [] 
+        self.x_data = []  # Initialize x_data and y_data
+        self.y_data = []
 
         self.fig, self.ax = plt.subplots()
         self.line, = self.ax.plot([], [], 'r-', label=y_label)  # Red line plot
@@ -47,13 +49,23 @@ class ExpandingGraph:
             assert not x_df.empty, f"Error: {self.x_path} is empty!"
             assert not y_df.empty, f"Error: {self.y_path} is empty!"
 
-            # Extract the first column (assuming numeric values)
-            self.x_data = x_df.iloc[:, 0].tolist()
-            self.y_data = y_df.iloc[:, 0].tolist()
+            # Check if the specified columns exist
+            assert self.x_label in x_df.columns, (
+                f"Column '{self.x_label}' not found in {self.x_path}. "
+                f"Available columns: {list(x_df.columns)}"
+            )
+            assert self.y_label in y_df.columns, (
+                f"Column '{self.y_label}' not found in {self.y_path}. "
+                f"Available columns: {list(y_df.columns)}"
+            )
+
+            # Extract data using the specified column labels
+            self.x_data = x_df[self.x_label].tolist()
+            self.y_data = y_df[self.y_label].tolist()
 
             # Assert that extracted data is numeric
-            assert all(isinstance(i, (int, float)) for i in self.x_data), "Error: x_data contains non-numeric values!"
-            assert all(isinstance(i, (int, float)) for i in self.y_data), "Error: y_data contains non-numeric values!"
+            assert all(isinstance(i, (int, float)) for i in self.x_data), "x_data contains non-numeric values!"
+            assert all(isinstance(i, (int, float)) for i in self.y_data), "y_data contains non-numeric values!"
 
             # Update the line data
             self.line.set_data(self.x_data, self.y_data)
