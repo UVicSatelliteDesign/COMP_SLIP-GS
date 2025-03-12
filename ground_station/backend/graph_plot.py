@@ -79,7 +79,12 @@ class ExpandingGraph:
 
     def start_animation(self, interval=1000):
         """Starts real-time updating of the plot."""
-        self.ani = animation.FuncAnimation(self.fig, self.update_plot, interval=interval, blit=False)
+        self.ani = animation.FuncAnimation(
+        fig=self.fig,          # Matplotlib figure to animate
+        func=self.update_plot, # Frame update callback
+        interval=interval,     # Delay between updates (ms)
+        blit=False             # Full figure redraw (not optimized)
+        )
 
 """
 Example usage:
