@@ -15,7 +15,7 @@ class GraphDisplayButton(QWidget):
         :param text: Text on button.
         :param graph_disp_object: Object containing and displaying the graphs.
         :param id: ID of graph button is linked to.
-        :param parent: Parent widget (optional).
+        :param parent: Parent widget (optional). Default is `None`.
         """
         super().__init__(parent)
 

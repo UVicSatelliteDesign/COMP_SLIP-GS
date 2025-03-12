@@ -3,6 +3,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout
 from graph_display_button import GraphDisplayButton
 from graph_display_area import GraphDisplayArea
 from graph_wrapper_class import GraphWrapperClass
+from backend.graph_plot import ExpandingGraph
 
 
 class GraphDisplayLayout(QWidget):
