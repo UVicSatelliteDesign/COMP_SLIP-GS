@@ -13,27 +13,28 @@ class ExpandingGraph:
     def __init__(self, x_file, y_file, x_label, y_label, title):
         self.x_path = os.path.join(DATABASE_DIR, x_file)
         self.y_path = os.path.join(DATABASE_DIR, y_file)
-        self.x_label = x_label  # Store x_label for column selection
-        self.y_label = y_label  # Store y_label for column selection
+        self.x_label = x_label
+        self.y_label = y_label
+        self.title = title
+        self.ani = None  # <--- Initialize animation object here
 
-        self.x_data = []  # Initialize x_data and y_data
+        self.x_data = []
         self.y_data = []
 
         self.fig, self.ax = plt.subplots()
-        self.line, = self.ax.plot([], [], 'r-', label=y_label)  # Red line plot
+        self.line, = self.ax.plot([], [], 'r-', label=y_label)
         self.ax.set_xlabel(x_label)
         self.ax.set_ylabel(y_label)
         self.ax.set_title(title)
         self.ax.legend()
         self.ax.grid(True)
 
-        # Assert that the CSV files exist before proceeding
         assert os.path.exists(self.x_path), f"Error: {self.x_path} does not exist!"
         assert os.path.exists(self.y_path), f"Error: {self.y_path} does not exist!"
 
     def get_title(self):
         """Getter function for the title."""
-        return self._title
+        return self.title
 
     def update_plot(self, frame):
         """Updates the graph dynamically by reading the latest CSV data."""
