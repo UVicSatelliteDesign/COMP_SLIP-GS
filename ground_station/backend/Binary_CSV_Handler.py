@@ -4,62 +4,98 @@ import pickle
 
 class DataHandler:
     def __init__(self, image_dir="images", telemetry_dir="telemetry"):
-        self.image_dir = image_dir
-        self.telemetry_dir = telemetry_dir
-        self.current_image = None
-        self.current_csv = None
-        self.previous_files = []
+        try:
+            assert isinstance(image_dir, str) and isinstance(telemetry_dir, str), "Directories must be strings"
+            
+            self.image_dir = image_dir
+            self.telemetry_dir = telemetry_dir
+            self.current_image = None
+            self.current_csv = None
+            self.previous_files = []
 
-        # Ensuring directories exist
-        os.makedirs(self.image_dir, exist_ok=True)
-        os.makedirs(self.telemetry_dir, exist_ok=True)
-
-    def set_image(self, identifier, image_data):
-        """Stores image data in a binary file using pickle."""
-        image_filename = os.path.join(self.image_dir, f"{identifier}.pkl")
+            # Ensuring directories exist
+            os.makedirs(self.image_dir, exist_ok=True)
+            os.makedirs(self.telemetry_dir, exist_ok=True)
         
-        if self.current_image and self.current_image != image_filename:
-            self.previous_files.append(self.current_image)
+        except AssertionError as e:
+            print(f"Initialization error: {e}")
+        except Exception as e:
+            print(f"Unexpected error during initialization: {e}")
 
-        self.current_image = image_filename
+    def set_image(self, identifier, image_data, MF=False):
+        """Stores image data in a binary file using pickle, handling More Fragment (MF) flag."""
+        try:
+            assert isinstance(identifier, str) and isinstance(image_data, bytes), "Invalid input types"
+            
+            image_filename = os.path.join(self.image_dir, f"{identifier}.pkl")
+            
+            if not MF:  # No more fragments, store and mark complete
+                if self.current_image and self.current_image != image_filename:
+                    self.previous_files.append(self.current_image)
+                self.current_image = image_filename
+                
+                with open(image_filename, "wb") as f:
+                    pickle.dump(image_data, f)
+                
+                print(f"Image saved: {image_filename}")
 
-        with open(image_filename, "wb") as f:
-            pickle.dump(image_data, f)  # Serialize and store binary data
+            else:                   # MF flag is True → append to an existing file (partial storage)
+                if os.path.exists(image_filename):
+                    with open(image_filename, "ab") as f:          # Append binary
+                        f.write(image_data)
+                else:
+                    with open(image_filename, "wb") as f:
+                        f.write(image_data)
+                
+                print(f"Image fragment saved: {image_filename} (MF=True)")
 
-        print(f"Image saved (pickled): {image_filename}")
+        except AssertionError as e:
+            print(f"Image storage error: {e}")
+        except Exception as e:
+            print(f"Unexpected error in set_image(): {e}")
 
     def set_telemetry(self, identifier, telemetry_dict):
-        """Stores telemetry data in a CSV file, creating a new file when a new identifier appears."""
-        csv_filename = os.path.join(self.telemetry_dir, f"{identifier}.csv")
+        """Stores telemetry data in a CSV file."""
+        try:
+            assert isinstance(identifier, str) and isinstance(telemetry_dict, dict), "Invalid input types"
 
-        if self.current_csv and self.current_csv != csv_filename:
-            self.previous_files.append(self.current_csv)
+            csv_filename = os.path.join(self.telemetry_dir, f"{identifier}.csv")
+            file_exists = os.path.isfile(csv_filename)
 
-        self.current_csv = csv_filename
-        file_exists = os.path.isfile(csv_filename)
+            with open(csv_filename, "a", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=telemetry_dict.keys())
+                if not file_exists:
+                    writer.writeheader()  # Write header only if the file is new
+                writer.writerow(telemetry_dict)
+            
+            print(f"Telemetry data saved: {csv_filename}")
 
-        with open(csv_filename, "a", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=telemetry_dict.keys())
-            if not file_exists:
-                writer.writeheader()  # Write header only if the file is new
-            writer.writerow(telemetry_dict)
-
-        print(f"Telemetry data saved: {csv_filename}")
+        except AssertionError as e:
+            print(f"Telemetry storage error: {e}")
+        except Exception as e:
+            print(f"Unexpected error in set_telemetry(): {e}")
 
     def load_image(self, identifier):
         """Loads and returns image data from a pickle file."""
-        image_filename = os.path.join(self.image_dir, f"{identifier}.pkl")
-        
-        if not os.path.exists(image_filename):
-            print(f"No image file found for identifier: {identifier}")
+        try:
+            assert isinstance(identifier, str), "Identifier must be a string"
+
+            image_filename = os.path.join(self.image_dir, f"{identifier}.pkl")
+            
+            if not os.path.exists(image_filename):
+                print(f"Image file {image_filename} not found.")
+                return None
+
+            with open(image_filename, "rb") as f:
+                image_data = pickle.load(f)
+                print(f"Image loaded: {image_filename}")
+                return image_data
+
+        except AssertionError as e:
+            print(f"Load image error: {e}")
+        except Exception as e:
+            print(f"Unexpected error in load_image(): {e}")
             return None
-
-        with open(image_filename, "rb") as f:
-            image_data = pickle.load(f)  # Deserialize and return data
-
-        print(f"Image loaded: {image_filename}")
-        return image_data
-
 
 '''
 
