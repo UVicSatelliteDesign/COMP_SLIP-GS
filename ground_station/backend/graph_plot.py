@@ -87,24 +87,60 @@ class ExpandingGraph:
         )
 
 """
-Example usage:
+This script demonstrates how to create a PyQt6 application that displays multiple real-time animated graphs using Matplotlib.
 
+### Key Components:
+1. **GraphWindow Class**:
+   - A PyQt6 `QMainWindow` subclass that serves as the main application window.
+   - Displays multiple real-time graphs in a vertical layout.
+   - Each graph is an instance of the `ExpandingGraph` class, which uses Matplotlib for plotting and animation.
+
+2. **ExpandingGraph Class**:
+   - Handles the creation and real-time updating of individual graphs.
+   - Reads data from CSV files and uses Matplotlib's `FuncAnimation` to update the plots dynamically.
+
+3. **Libraries Used**:
+   - **Matplotlib**: For creating and animating graphs.
+   - **PyQt6**: For building the GUI application.
+   - **Pandas**: For reading and processing CSV data.
+
+### How It Works:
+1. **Graph Initialization**:
+   - Multiple `ExpandingGraph` instances are created, each representing a real-time graph.
+   - Each graph reads data from CSV files and sets up a Matplotlib figure.
+
+2. **PyQt6 GUI Setup**:
+   - A `GraphWindow` class inherits from `QMainWindow` to create the application window.
+   - A central widget (`QWidget`) and a vertical layout (`QVBoxLayout`) are used to organize the graphs.
+
+3. **Embedding Matplotlib in PyQt6**:
+   - For each graph, a `FigureCanvas` is created to embed the Matplotlib figure into the PyQt6 window.
+   - The `start_animation()` method is called to begin real-time updates for each graph.
+
+4. **Application Execution**:
+   - The PyQt6 application is started with `QApplication`.
+   - The main window (`GraphWindow`) is displayed, and the event loop begins with `app.exec()`.
+
+### Example Usage:
+```python
 class GraphWindow(QMainWindow):
     def __init__(self, graphs):
         super().__init__()
-        self.setWindowTitle("Real-Time Graphs")
-        self.setGeometry(100, 100, 1200, 800)
+        self.setWindowTitle("Real-Time Graphs")  # Set window title
+        self.setGeometry(100, 100, 1200, 800)  # Set window size and position
 
         # Create a central widget and layout
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
-        layout = QVBoxLayout(central_widget)
+        central_widget = QWidget()              # Central widget for the main window
+        self.setCentralWidget(central_widget)   # Set it as the main window's central widget
+        layout = QVBoxLayout(central_widget)    # Use a vertical layout to organize graphs
 
         # Add each graph to the window
         for graph in graphs:
+            # Create a Matplotlib FigureCanvas to embed the graph in the PyQt6 window
             canvas = FigureCanvas(graph.fig)
-            layout.addWidget(canvas)
-            graph.start_animation()
+            layout.addWidget(canvas)            # Add the canvas to the layout
+            graph.start_animation()             # Start the animation for the graph
+
 
 if __name__ == "__main__":
     # Create instances for each graph
@@ -117,8 +153,8 @@ if __name__ == "__main__":
     ]
 
     # Start the PyQt6 application
-    app = QApplication(sys.argv)
-    window = GraphWindow(graphs)
-    window.show()
-    sys.exit(app.exec())
-"""
+    app = QApplication(sys.argv)  # Create the PyQt6 application instance
+    window = GraphWindow(graphs)  # Create the main window with the list of graphs
+    window.show()                 # Display the window
+    sys.exit(app.exec())          # Start the application event loop"
+    """
