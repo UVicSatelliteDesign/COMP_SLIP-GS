@@ -1,103 +1,84 @@
 #!/usr/bin/env python
 import sys
 import struct
-# Import zlib
-
-"""
-TODO: Define what type of data is being sent {Ack, Status}
-TODO: Ensure proper testing 
-TODO: Add a couple of asserts (try catch blocks)
-TODO: Implement CRC (Data integrity), 
-TODO: If packet is received, either send acknowledge or send error, 
-"""
+import zlib
 
 # Global Variables
-ACK_FLAG=0 # 2: No packet received, 1: Acknowledge packet, 0: Incorrect packet
-PAYLOAD_TYPE_LIST = ['POWER', 'PICTURE', 'RESET']  # Data type in the payload  
-G = 1001 # G(x)= X^3 + 1 Generator for CRC parity checking 
+ACK_FLAG = 0  # 2: No packet received, 1: Acknowledge packet, 0: Incorrect packet
+PAYLOAD_TYPE_LIST = ['POWER', 'PICTURE', 'RESET']  # Data type of the payload (4-bit number representation in packet header)
+HEADER_FORMAT = '!BHI'  # flag (B), type_id (H), length (I) (Always big endian)
+HEADER_SIZE = struct.calcsize(HEADER_FORMAT)
+G = 0b1001  # G(x)= X^3 + 1 Generator for CRC parity checking
 
 class GroundStationReceiver():
-    def __init__(self, args):
-        self.args = args
-        self.package_header = PackageHeader()
+    def __init__(self, data):
+        '''
+        Segment of data is taken from the physical link and passed up to the 
+        GroundStationReceiver class. This segment of data (PackageHeader,Payload)
+        is then parsed and stored within this class. Furthermore, the use of flags
+        allows for the state of the received packet to be shared globaly. Finally, a 
+        CRC parity checker is used to ensure data integrity.
+        '''
+        try:
+            assert len(data) >= HEADER_SIZE, "Insufficient data length for header"
+            self.package_header = PackageHeader.unpack(data[:HEADER_SIZE])
+            assert len(data[HEADER_SIZE:]) == self.package_header.length, "Payload length mismatch"
+            self.payload = data[HEADER_SIZE:]
+        except AssertionError as e:
+            print(f"Error initializing GroundStationReceiver: {e}")
+            self.package_header = None
+            self.payload = None
 
-    # TODO: Listen for bytes(packets)
-    def recieve_payload(self):
+    def check_parity(self):
         '''
-        Establish connection -> Recieve data, identify type of payload
+        This function parses through the data in the packet and ensures that parity 
+        checking is being computed correctly. Additionally, if it is, the function will send 
+        a message to the transmitter class asking it to send an acknowledge. Otherwise, this 
+        function does not ask the transmitter class to acknowledge.
         '''
-        # For demonstration, simulate receiving a packet.
-        dummy_payload = b"This is a test payload"
-        header = PackageHeader(flag=0x01, type_id=0x0001, length=len(dummy_payload))
-        # Return full packet as header + payload.
-        return header.pack() + dummy_payload
+        if not self.payload or not self.package_header:
+            print("No valid payload or header available.")
+            return False
 
-    def parse_packet(self, packet):
-        '''
-        Process data; raise errors if something wrong, if not then set flag to indicate 
-        that acknowledgment should be sent.
-        '''
-        # Extract header.
-        header = PackageHeader.unpack(packet)
-        # Extract payload.
-        payload = packet[PackageHeader.HEADER_SIZE:]
-        if len(payload) != header.length:
-            raise ValueError("Payload length mismatch")
-        return header, payload
+        crc_from_payload = struct.unpack('!I', self.payload[-4:])[0]  # Last 4 bytes are CRC
+        data_without_crc = self.payload[:-4]
 
-    # TODO: Remove this routine
-    def send(self, response_payload):
-        '''
-        Flags, acknowledgement, other stuff...
-        '''
-        # Create response header.
-        header = PackageHeader(flag=0x02, type_id=0x0002, length=len(response_payload))
-        packet = header.pack() + response_payload
-        # In a full implementation, the packet would be transmitted.
-        return packet
+        computed_crc = zlib.crc32(data_without_crc)
+
+        try:
+            assert crc_from_payload == computed_crc, "CRC mismatch!"
+            global ACK_FLAG
+            ACK_FLAG = 1  # TODO: Pass ACK to transmitter class
+            return True
+        except AssertionError as e:
+            print(f"CRC check failed: {e}")
+            ACK_FLAG = 0  # TODO: Pass Error to transmitter class
+            return False
 
 class PackageHeader():
-    HEADER_FORMAT = '!BHI'  # flag (B), type_id (H), length (I) (ALways do big endian)
-    HEADER_SIZE = struct.calcsize(HEADER_FORMAT)
-
-    # TODO: put flag at the end 
     def __init__(self, flag=0, type_id=0, length=0):
-        self.flag = flag
-        self.type_id = type_id
-        self.length = length
+        try:
+            assert 0 <= type_id < len(PAYLOAD_TYPE_LIST), "Invalid type_id!"
+            assert length >= 0, "Length must be non-negative"
+        except AssertionError as e:
+            print(f"PackageHeader initialization error: {e}")
+            self.type_id = None
+            self.length = None
+            self.flag = None
+            return
 
-    # TODO: Remove this 
-    def pack(self):
-        # Pack the header fields into bytes.
-        # TODO: make flag at the end of package header
-        return struct.pack(PackageHeader.HEADER_FORMAT, self.type_id, self.length, self.flag)
+        self.type_id = PAYLOAD_TYPE_LIST[type_id]  # Type id may range from 0 to len(PAYLOAD_TYPE_LIST)-1 inclusive
+        self.length = length
+        self.flag = flag
 
     @classmethod
     def unpack(cls, data):
-        # Converts raw bytes into a structured object, and enforced data integrity.
-        if len(data) < cls.HEADER_SIZE:
-            raise ValueError("Data too short for header")
-        flag, type_id, length = struct.unpack(cls.HEADER_FORMAT, data[:cls.HEADER_SIZE])
-        return cls(flag, type_id, length)
-
-# TODO: Remove main, receive function
-def main():
-    """
-    This is the main function for the ReceiverClass module.
-    """
-    args = sys.argv[1:]
-    receiver = GroundStationReceiver(args)
-    
-    # Simulate receiving a packet.
-    packet = receiver.recieve_payload()
-    
-    try:
-        header, payload = receiver.parse_packet(packet)
-        print("Received payload:", payload)
-    except Exception as e:
-        print("Error parsing packet:", e)
-    
-    # Generate and send an acknowledgement.
-    ack_payload = acknowledgement()
-    ack_packet = receiver.send(ack_payload)
-    print("Acknowledgement packet sent:", ack_packet)
+        # Converts raw bytes into a structured object, and enforces data integrity.
+        try:
+            if len(data) < HEADER_SIZE:
+                raise ValueError("Data too short for header")
+            flag, type_id, length = struct.unpack(HEADER_FORMAT, data[:HEADER_SIZE])
+            return cls(flag, type_id, length)
+        except struct.error as e:
+            print(f"Struct unpacking error: {e}")
+            return cls()
