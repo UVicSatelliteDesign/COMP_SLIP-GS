@@ -1,6 +1,7 @@
 '''Imports'''
 from zlib import crc32
 import json
+import struct
 
 '''Global variables'''
 PAYLOAD_TYPE_LIST = [b"POWER", b"PICTURE", b"RESET"] 
@@ -12,10 +13,12 @@ class GroundStationTransmitter():
 
     def __init__(self, payload, payload_type):
         self.payload = payload
-        self.eof_bit = 0 
         self.payload_type = payload_type #Identifies the command type
-        self.src_address = b"source address"
-        self.dst_address = b"destination address"
+        #Example 2-bit source and destination addresses.
+        self.src_address = b"\x00\x01"    
+        self.dst_address = b"\x01\x00"
+        self.preamble = 0XAA
+
     
     def construct_packet(self):
         # Ideal Payload structure BYTES(All other fields will have default values)
@@ -48,22 +51,29 @@ class GroundStationTransmitter():
         '''
         # TODO check if payload_type is in the 3-bit list
         if self.payload_type not in PAYLOAD_TYPE_LIST:
-            raise IncorrectPayloadTypeException
+            raise IncorrectPayloadTypeException(f"Invalid payload type: {self.payload_type}")
         
         payload_length = len(self.payload)
 
-        #Construct packet header (Metadata)
-        packet_header = 0XAA  #Preamble(denotes the starting of a packet)
-        packet_header += self.payload_type
-        packet_header += payload_length
-        packet_header += self.src_address
-        packet_header += self.dst_address
+        #Compute crc checksum
+        crc_input = self.payload_type + self.payload
+        crc_checksum = self.check_sum(crc_input)
 
-        #Calculate Checksum on the entire payload
-        crc_check_sum = self.check_sum(self.payload_type + self.payload)
+        # Use struct to pack the fixed fields
+        header = struct.pack(
+            ">BBBH2s2s",  # Big-endian format: preamble, type, length, reserved, src, dst
+            self.preamble,
+            payload_length,
+            0x00,               # Reserved bits
+            self.src_address,
+            self.dst_address
+        )
 
-        #Construct packet
-        packet = bytes([packet_header, self.payload, crc_check_sum, self.eof_bit])
+        # Pack CRC32 and EOF bit
+        footer = struct.pack(">I B", crc_checksum)
+
+        # Final packet: header + payload + footer
+        packet = header + self.payload + footer
 
         return packet
 
