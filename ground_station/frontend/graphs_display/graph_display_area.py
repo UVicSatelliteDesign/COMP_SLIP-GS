@@ -2,6 +2,8 @@ from PyQt6.QtWidgets import QWidget, QStackedLayout, QLabel
 from PyQt6.QtCore import Qt
 from concurrent.futures import ThreadPoolExecutor
 
+from graph_wrapper_class import GraphWrapperClass
+
 
 class GraphDisplayArea(QWidget):
     def __init__(self,
