@@ -1,5 +1,8 @@
 import sys
-from PyQt5.QtWidgets import (
+
+sys.path
+sys.executable
+from PyQt6.QtWidgets import ( 
     QApplication,
     QMainWindow,
     QWidget,
@@ -10,7 +13,6 @@ from PyQt5.QtWidgets import (
     QComboBox,
     QTextEdit,
 )
-#from PyQt5.QtGui import QPixmap
 
 #import graph class
 #import backend
