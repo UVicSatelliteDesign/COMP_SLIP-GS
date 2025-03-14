@@ -63,8 +63,9 @@ class GroundStationTransmitter():
         header = struct.pack(
             ">BBBH2s2s",  # Big-endian format: preamble, type, length, reserved, src, dst
             self.preamble,
+            self.payload_type,
             payload_length,
-            0x00,               # Reserved bits
+            0x00,               # Reserved bits (optional)
             self.src_address,
             self.dst_address
         )
