@@ -1,37 +1,73 @@
 #!/usr/bin/env python
-import sys
-import struct
 
-class GroundStationReceiver():
-    def __init__(self, data):
+class ReceivedPacket():
+    def __init__(self, data: bytes):
         '''
-        Receives data from the physical link and parses it into the header, payload, and sequence number.
-        The CRC check is assumed to be done at a lower layer (GNU Data Link).
+        Parses received binary data according to the following format:
+        - First 4 bits: payload_type
+        - Next bits (variable length): payload
+        - Next 17 bits: offset
+        - Last 15 bits: sequence number
         '''
+        self.payload_type = None
+        self.payload = None
+        self.offset = None
+        self.sequence_number = None
+
         try:
-            assert len(data) >= 4, "Insufficient data length for payload"
+            # Total bits in data
+            total_bits = len(data) * 8
 
-            self.length = struct.unpack('!B', data[:1])[0]  # 1 byte (length of payload)
-            self.address = struct.unpack('!B', data[1:2])[0]  # 1 byte (address for payload routing)
+            # Ensure data length is valid (at least 4 bits payload_type + 32 bits offset and sequence number)
+            assert total_bits > 36, "Data too short for defined format"
 
-            assert len(data) == self.length + 4, "Data length does not match payload length"
+            # Extract payload_type (first 4 bits)
+            first_byte = data[0]
+            self.payload_type = first_byte >> 4
 
-            self.payload = data[2:2+self.length]  # Payload data
-            self.sequence_number = struct.unpack('!H', data[-2:])[0]  # Last 2 bytes as sequence number
+            # Calculate payload length in bits and bytes
+            payload_bits_length = total_bits - 36
+            payload_bytes_length = (payload_bits_length + 7) // 8
 
-        except AssertionError as e:
+            # Extract payload
+            if payload_bytes_length > 0:
+                payload_start = 4  # Skip first 4 bits already used
+                payload_end = payload_start + payload_bits_length
+
+                # Extract payload bits
+                payload_bits = int.from_bytes(data, 'big')
+                payload_bits >>= 32  # remove offset and sequence number bits from the end
+                payload_bits &= (1 << payload_bits_length) - 1
+                self.payload = payload_bits.to_bytes(payload_bytes_length, 'big')
+            else:
+                self.payload = b''
+
+            # Extract offset (17 bits before sequence number)
+            last_four_bytes = int.from_bytes(data[-4:], 'big')
+            self.offset = (last_four_bytes >> 17) & 0x3FFF
+
+            # Extract sequence_number (last 15 bits)
+            self.sequence_number = last_four_bytes & 0x7FFF
+
+        except (AssertionError, ValueError, IndexError) as e:
             print(f"Initialization error: {e}")
-            self.length, self.address, self.payload, self.sequence_number = None, None, None, None
-            # TODO: send a not ACK message to transmitter?
+            self.payload_type = None
+            self.payload = None
+            self.offset = None
+            self.sequence_number = None
 
+    def __repr__(self):
+        return (f"ReceivedPacket(payload_type={self.payload_type}, "
+                f"offset={self.offset}, "
+                f"sequence_number={self.sequence_number})")
+    
     def pass_to_application(self):
         '''
         Passes payload to the application layer according to the address field.
         '''
-        if self.address is None or self.payload is None:
+        if self.address is None:
             print("Invalid packet data. Nothing to pass to application layer.")
             return
-
         if self.address == 0b0000:
             handle_ping(self.payload) # TODO:
         elif self.address == 0b0001:
