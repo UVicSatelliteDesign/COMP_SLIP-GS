@@ -35,22 +35,33 @@ class GroundStationTransmitter():
     def construct_packet(self):
         if self.payload_type not in PAYLOAD_TYPE_LIST:
             raise IncorrectPayloadTypeException(f"Invalid payload type: {self.payload_type}")
+        
+        #TODO add payload_type to the starting of the packet
+        '''data field and offset are none for now'''
+        #TODO append a sequence number at the end of the recieved payload
 
-        payload_length = len(self.payload)
+        # payload_length = len(self.payload)
+
+        # #Compute crc checksum
+        # crc_input = self.payload_type + self.payload
+        # crc_checksum = self.check_sum(crc_input)
 
         # # Use struct to pack the fixed fields
-        header = struct.pack(
-            ">BBBH2s2s",  # Big-endian format: preamble, type, length, reserved, src, dst
-            self.preamble,
-            self.payload_type,
-            payload_length,
-            0x00,               # Reserved bits (optional)
-            self.src_address,
-            self.dst_address
-        )
+        # header = struct.pack(
+        #     ">BBBH2s2s",  # Big-endian format: preamble, type, length, reserved, src, dst
+        #     self.preamble,
+        #     self.payload_type,
+        #     payload_length,
+        #     0x00,               # Reserved bits (optional)
+        #     self.src_address,
+        #     self.dst_address
+        # )
+
+        # Pack CRC32 and EOF bit
+        # footer = struct.pack(">I B", crc_checksum)
 
         # # Final packet: header + payload + footer
-        packet = header + self.payload
+        # packet = header + self.payload + footer
 
         return packet
 
