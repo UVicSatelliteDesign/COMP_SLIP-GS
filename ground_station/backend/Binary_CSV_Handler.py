@@ -9,6 +9,7 @@ class DataHandler:
         self.recent_files = {}  # Tracks most recent files
         self.global_headers = set()  # Stores global headers for telemetry
         self.data_saved = False  # Global flag for saving status
+        self.sequence_number = 0  # Global sequence number variable
 
         # Ensure directories exist
         os.makedirs(self.image_dir, exist_ok=True)
@@ -28,8 +29,8 @@ class DataHandler:
 
     def handle_camera_data(self, payload):
         """Handles and stores incoming camera data."""
-        identifier, sequence_number, offset, image_data = self.parse_camera_payload(payload)
-        file_path = os.path.join(self.image_dir, f"{identifier}_{sequence_number}.pkl")
+        identifier, offset, image_data = self.parse_camera_payload(payload)
+        file_path = os.path.join(self.image_dir, f"{identifier}_{self.sequence_number}.pkl")
 
         mode = "wb" if offset == 0 else "ab"
         with open(file_path, mode) as f:
@@ -37,6 +38,7 @@ class DataHandler:
 
         self.recent_files[identifier] = file_path
         self.data_saved = True  # Mark data as saved
+        self.sequence_number += 1  # Increment global sequence number
 
     def handle_telemetry_data(self, payload):
         """Handles and stores telemetry data in CSV."""
@@ -55,12 +57,12 @@ class DataHandler:
         self.data_saved = True  # Mark data as saved
 
     def parse_camera_payload(self, payload):
-        """Parses camera payload to extract identifier, sequence number, offset, and image data."""
+        """Parses camera payload to extract identifier, offset, and image data.
+        Now uses last 16 bits for offset as per the image specification."""
         identifier = payload[:8].decode()  # Extract identifier
-        sequence_number = int.from_bytes(payload[8:12], 'big')  # Extract sequence number
-        offset = int.from_bytes(payload[-4:], 'big')  # Extract offset (from second last position)
-        image_data = payload[12:-4]  # Extract actual image data
-        return identifier, sequence_number, offset, image_data
+        offset = int.from_bytes(payload[-2:], 'big')  # Extract offset from last 16 bits
+        image_data = payload[8:-2]  # Extract actual image data (between identifier and offset)
+        return identifier, offset, image_data
 
     def parse_telemetry_payload(self, payload):
         """Parses telemetry payload and extracts data."""
