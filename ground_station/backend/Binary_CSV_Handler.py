@@ -2,73 +2,93 @@ import os
 import csv
 import pickle
 
+# TRUE GLOBAL VARIABLES (module-level)
+DATA_SAVED = False
+SEQUENCE_NUMBER = 0
+
 class DataHandler:
     def __init__(self, image_dir="images", telemetry_dir="telemetry"):
         self.image_dir = image_dir
         self.telemetry_dir = telemetry_dir
         self.recent_files = {}  # Tracks most recent files
-        self.global_headers = set()  # Stores global headers for telemetry
-        self.data_saved = False  # Global flag for saving status
-        self.sequence_number = 0  # Global sequence number variable
+        self.global_headers = []  # Stores telemetry headers
 
-        # Ensure directories exist
         os.makedirs(self.image_dir, exist_ok=True)
         os.makedirs(self.telemetry_dir, exist_ok=True)
 
     def process_packet(self, packet):
-        """Processes an incoming data packet and routes it accordingly."""
-        data_type = packet[:4]  # First 4 bits determine the type
-        payload = packet[4:]  # Remaining data
+        """Processes incoming data packet with validation"""
+        assert isinstance(packet, bytes), "Packet must be bytes"
+        assert len(packet) >= 4, "Packet too short (needs 4+ bytes)"
+        
+        data_type = packet[:4]
+        payload = packet[4:]
 
         if data_type == b"\x00\x00\x00\x10":  # Telemetry
             self.handle_telemetry_data(payload)
         elif data_type in [b"\x00\x00\x00\x11", b"\x00\x00\x01\x00"]:  # Camera
             self.handle_camera_data(payload)
         else:
-            print("Unknown packet type received!")
+            print(f"Unknown packet type: {data_type}")
 
     def handle_camera_data(self, payload):
-        """Handles and stores incoming camera data."""
+        """Handles camera data with 17-bit offset and global sequence"""
+        global SEQUENCE_NUMBER, DATA_SAVED
+        assert len(payload) >= 11, f"Camera payload needs ≥11 bytes, got {len(payload)}"
+        
         identifier, offset, image_data = self.parse_camera_payload(payload)
-        file_path = os.path.join(self.image_dir, f"{identifier}_{self.sequence_number}.pkl")
+        file_path = os.path.join(self.image_dir, f"{identifier}_{SEQUENCE_NUMBER}.pkl")
 
-        mode = "wb" if offset == 0 else "ab"
-        with open(file_path, mode) as f:
+        with open(file_path, "wb" if offset == 0 else "ab") as f:
             f.write(image_data)
 
         self.recent_files[identifier] = file_path
-        self.data_saved = True  # Mark data as saved
-        self.sequence_number += 1  # Increment global sequence number
+        DATA_SAVED = True
+        SEQUENCE_NUMBER += 1
 
     def handle_telemetry_data(self, payload):
-        """Handles and stores telemetry data in CSV."""
-        telemetry_dict = self.parse_telemetry_payload(payload)
+        """Handles telemetry data (values only) with header matching"""
+        global DATA_SAVED
+        assert len(payload) > 0, "Telemetry payload empty"
+        
+        values = self.parse_telemetry_payload(payload)
+        if not values:
+            return
+
         csv_file = os.path.join(self.telemetry_dir, "telemetry.csv")
 
-        # Store headers globally
-        self.global_headers.update(telemetry_dict.keys())
+        # Initialize headers if first packet
+        if not self.global_headers:
+            self.global_headers = [f"Field_{i}" for i in range(len(values))]
+
+        # Ensure we have matching headers and values
+        if len(values) != len(self.global_headers):
+            print(f"Value count mismatch: got {len(values)}, expected {len(self.global_headers)}")
+            return
 
         with open(csv_file, "a", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=list(self.global_headers))
+            writer = csv.DictWriter(f, fieldnames=self.global_headers)
             if os.stat(csv_file).st_size == 0:
                 writer.writeheader()
-            writer.writerow(telemetry_dict)
+            writer.writerow(dict(zip(self.global_headers, values)))
 
-        self.data_saved = True  # Mark data as saved
+        DATA_SAVED = True
 
     def parse_camera_payload(self, payload):
-        """Parses camera payload to extract identifier, offset, and image data.
-        Now uses last 16 bits for offset as per the image specification."""
-        identifier = payload[:8].decode()  # Extract identifier
-        offset = int.from_bytes(payload[-2:], 'big')  # Extract offset from last 16 bits
-        image_data = payload[8:-2]  # Extract actual image data (between identifier and offset)
-        return identifier, offset, image_data
+        """Extracts: 8B identifier, image data, 17-bit offset (last 3B)"""
+        identifier = payload[:8].decode('ascii', errors='replace').strip()
+        
+        # Extract last 17 bits from final 3 bytes
+        offset_bytes = payload[-3:]
+        offset = ((offset_bytes[0] & 0x1F) << 12) | (offset_bytes[1] << 4) | (offset_bytes[2] >> 4)
+        
+        return identifier, offset, payload[8:-3]
 
     def parse_telemetry_payload(self, payload):
-        """Parses telemetry payload and extracts data."""
-        telemetry_dict = {}  # Placeholder for parsed telemetry data
-        data_fields = payload.decode().split(",")  # Assuming CSV-like input
-        for field in data_fields:
-            key, value = field.split(":")
-            telemetry_dict[key.strip()] = value.strip()
-        return telemetry_dict
+        """Returns clean list of values (no keys) matching header format"""
+        try:
+            decoded = payload.decode('ascii', errors='replace').strip()
+            return [x.strip() for x in decoded.split(",") if x.strip()]
+        except Exception as e:
+            print(f"Telemetry decode failed: {e}")
+            return []
