@@ -92,4 +92,48 @@ class ReceivedPacket():
         # Should we append the payload_type, offset and sequence number directly to the TX_queue?
 
     def __repr__(self):
-        return (f"ReceivedPacket(payload_type={self.payload_type}, length={self.payload_length}, offset={self.offset}, sequence_number={self.sequence_number}")
+        return (f"ReceivedPacket(payload_type={self.payload_type}, "
+                f"offset={self.offset}, "
+                f"sequence_number={self.sequence_number})")
+
+    def pass_to_application(self):
+        '''
+        Passes payload to the application layer according to the address field (payload_type).
+        '''
+        if self.payload is None:
+            print("Invalid packet data. Nothing to pass to application layer.")
+            return
+        if self.payload == 0b0000:
+            handle_ping(self.payload) # TODO:
+        elif self.payload == 0b0001:
+            handle_nominal(self.payload) # TODO:
+        elif self.payload == 0b0010:
+            handle_low_power(self.payload) # TODO:
+        elif self.payload == 0b0011:
+            handle_telemetry(self.payload) # TODO:
+        elif self.payload == 0b0100:
+            handle_camera1_end(self.payload) # TODO:
+        elif self.payload == 0b0101:
+            handle_camera1_mf(self.payload) # TODO:
+        elif self.payload == 0b0110:
+            handle_camera2_end(self.payload) # TODO:
+        elif self.payload == 0b0111:
+            handle_camera2_mf(self.payload) # TODO:
+        elif self.payload == 0b1000:
+            handle_retransmission(self.payload) # TODO:
+        elif self.payload == 0b1001:
+            handle_error_crc(self.payload) # TODO:
+        elif self.payload == 0b1010:
+            handle_error_dup(self.payload) # TODO:
+        elif self.payload == 0b1011:
+            handle_erro_lp(self.payload) # TODO:
+        elif self.payload == 0b1100:
+            handle_ack_camer(self.payload) # TODO:
+        elif self.payload == 0b1101:
+            handle_ack_telemetry(self.payload) # TODO:
+        elif self.payload == 0b1110:
+            handle_ack_status(self.payload) # TODO:
+        elif self.payload == 0b1111:
+            handle_ack_error(self.payload) # TODO:
+        else:
+            print(f"Unknown address field: {self.payload}. Payload not routed.")
