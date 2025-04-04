@@ -2,11 +2,14 @@ import os
 import csv
 import pickle
 
-# TRUE GLOBAL VARIABLES (module-level)
-DATA_SAVED = False
-SEQUENCE_NUMBER = 0
+# GLOBAL VARIABLES (as requested)
+DATA_SAVED = False  # Global flag for camera data
+TELEMETRY_SAVED = False  # Separate global flag for telemetry
 
 class DataHandler:
+    # Class variable for sequence number
+    sequence_number = 0
+
     def __init__(self, image_dir="images", telemetry_dir="telemetry"):
         self.image_dir = image_dir
         self.telemetry_dir = telemetry_dir
@@ -32,23 +35,23 @@ class DataHandler:
             print(f"Unknown packet type: {data_type}")
 
     def handle_camera_data(self, payload):
-        """Handles camera data with 17-bit offset and global sequence"""
-        global SEQUENCE_NUMBER, DATA_SAVED
+        """Handles camera data with 17-bit offset"""
+        global DATA_SAVED  # Using global variable
         assert len(payload) >= 11, f"Camera payload needs ≥11 bytes, got {len(payload)}"
         
         identifier, offset, image_data = self.parse_camera_payload(payload)
-        file_path = os.path.join(self.image_dir, f"{identifier}_{SEQUENCE_NUMBER}.pkl")
+        file_path = os.path.join(self.image_dir, f"{identifier}_{DataHandler.sequence_number}.pkl")
 
         with open(file_path, "wb" if offset == 0 else "ab") as f:
             f.write(image_data)
 
         self.recent_files[identifier] = file_path
-        DATA_SAVED = True
-        SEQUENCE_NUMBER += 1
+        DATA_SAVED = True  # Update global flag
+        DataHandler.sequence_number += 1  # Update class variable
 
     def handle_telemetry_data(self, payload):
-        """Handles telemetry data (values only) with header matching"""
-        global DATA_SAVED
+        """Handles telemetry data with direct writerow"""
+        global TELEMETRY_SAVED  # Using separate global variable
         assert len(payload) > 0, "Telemetry payload empty"
         
         values = self.parse_telemetry_payload(payload)
@@ -61,18 +64,13 @@ class DataHandler:
         if not self.global_headers:
             self.global_headers = [f"Field_{i}" for i in range(len(values))]
 
-        # Ensure we have matching headers and values
-        if len(values) != len(self.global_headers):
-            print(f"Value count mismatch: got {len(values)}, expected {len(self.global_headers)}")
-            return
-
         with open(csv_file, "a", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=self.global_headers)
+            writer = csv.writer(f)
             if os.stat(csv_file).st_size == 0:
-                writer.writeheader()
-            writer.writerow(dict(zip(self.global_headers, values)))
+                writer.writerow(self.global_headers)
+            writer.writerow(values)  # Directly write values
 
-        DATA_SAVED = True
+        TELEMETRY_SAVED = True  # Update separate global flag
 
     def parse_camera_payload(self, payload):
         """Extracts: 8B identifier, image data, 17-bit offset (last 3B)"""
@@ -85,7 +83,7 @@ class DataHandler:
         return identifier, offset, payload[8:-3]
 
     def parse_telemetry_payload(self, payload):
-        """Returns clean list of values (no keys) matching header format"""
+        """Returns clean list of values (no keys)"""
         try:
             decoded = payload.decode('ascii', errors='replace').strip()
             return [x.strip() for x in decoded.split(",") if x.strip()]
