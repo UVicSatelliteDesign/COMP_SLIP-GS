@@ -1,58 +1,53 @@
 import struct
 
 PAYLOAD_TYPE_LIST = [
-    "0000",  # Ping
-    "0001",  # Nominal
-    "0010",  # Low Power
-    "0011",  # Telemetry
-    "0100",  # Camera-1-End
-    "0101",  # Camera-1-MF
-    "0110",  # Camera-2-End
-    "0111",  # Camera-2-MF
-    "1000",  # Request Retransmission
-    "1001",  # Error - CRC
-    "1010",  # Error - Duplication
-    "1011",  # Error - Low Power
-    "1100",  # Ack. Rec. Camera
-    "1101",  # Ack. Rec. Telemetry
-    "1110",  # Ack. Rec. Status
-    "1111",  # Ack. Rec. Error
+    0b0000,  # Ping
+    0b0001,  # Nominal
+    0b0010,  # Low Power
+    0b0011,  # Telemetry
+    0b0100,  # Camera-1-End
+    0b0101,  # Camera-1-MF
+    0b0110,  # Camera-2-End
+    0b0111,  # Camera-2-MF
+    0b1000,  # Request Retransmission
+    0b1001,  # Error - CRC
+    0b1010,  # Error - Duplication
+    0b1011,  # Error - Low Power
+    0b1100,  # Ack. Rec. Camera
+    0b1101,  # Ack. Rec. Telemetry
+    0b1110,  # Ack. Rec. Status
+    0b1111,  # Ack. Rec. Error
 ]
+
 MAX_TRANSMISSION_LIMIT = 5 #dummy value small for testing
 
 
 class GroundStationTransmitter():
+    sequence_number = 0
 
-    def __init__(self, payload, payload_type):
-        self.payload = payload
-        self.payload_type = payload_type #Identifies the command type
-        #Example 2-bit source and destination addresses.
-        self.src_address = b"\x00\x01"    
-        self.dst_address = b"\x01\x00"
-        self.preamble = 0XAA
-
+    def __init__(self, payload_type, payload_data=None, offset=None, cmd=None):
+        self.payload_type = payload_type
+        self.payload_data = payload_data
+        self.offset = offset
+        self.__class__.sequence_number+=1
     
+
     def construct_packet(self):
         if self.payload_type not in PAYLOAD_TYPE_LIST:
             raise IncorrectPayloadTypeException(f"Invalid payload type: {self.payload_type}")
-
-        payload_length = len(self.payload)
-
-        # # Use struct to pack the fixed fields
-        header = struct.pack(
-            ">BBBH2s2s",  # Big-endian format: preamble, type, length, reserved, src, dst
-            self.preamble,
-            self.payload_type,
-            payload_length,
-            0x00,               # Reserved bits (optional)
-            self.src_address,
-            self.dst_address
-        )
         
-        # Final packet: header + payload + footer
-        packet = header + self.payload
+        #TODO add try-assert blocks
+        if self.payload_data:
+            #sending acknowledgement
+            #attach payload_data to packet
+            if self.offset:
+                #Camera Acknowledgement
+                pass
 
-        return packet
+        if not self.payload_data and self.cmd:
+            #Sending command no payload_data
+            pass
+
 
     def transmit_packet(self, transmit_func):
         '''
