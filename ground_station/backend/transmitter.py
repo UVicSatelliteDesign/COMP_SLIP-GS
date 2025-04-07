@@ -37,15 +37,18 @@ class GroundStationTransmitter():
             raise IncorrectPayloadTypeException(f"Invalid payload type: {self.payload_type}")
         
         #TODO add try-assert blocks
-        if self.payload_data:
-            #sending acknowledgement
-            #attach payload_data to packet
-            if self.offset:
-                #Camera Acknowledgement
-                pass
+        try:
+            if self.payload_data:
+                #sending acknowledgement
+                #attach payload_data to packet
+                if self.offset:
+                    #Camera Acknowledgement
+                    pass
 
-        if not self.payload_data and self.cmd:
-            #Sending command no payload_data
+            if not self.payload_data and self.cmd:
+                #Sending command no payload_data
+                pass
+        except Exception as e:
             pass
 
 
