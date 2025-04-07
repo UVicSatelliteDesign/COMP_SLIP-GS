@@ -40,7 +40,7 @@ class DataHandler:
         assert len(payload) >= 11, f"Camera payload needs ≥11 bytes, got {len(payload)}"
         
         identifier, offset, image_data = self.parse_camera_payload(payload)
-        file_path = os.path.join(self.image_dir, f"{identifier}_{DataHandler.sequence_number}.pkl")
+        file_path = os.path.join(self.image_dir, f"{identifier}_{DataHandler.sequence_number}.bin")
 
         with open(file_path, "wb" if offset == 0 else "ab") as f:
             f.write(image_data)
