@@ -53,7 +53,7 @@ class GroundStationTransmitter():
                 #sending acknowledgement
                 #attach payload_data to packet
                 assert len(self.payload_type) > 0, "Payload length zero, does not exist!"
-                packet.extend(self.payload)
+                packet.extend(self.payload_data)
                 if self.offset:
                     assert len(self.offset) > 0, "Offset length zero, does not exists"
                     #Camera Acknowledgement
