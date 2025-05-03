@@ -1,4 +1,3 @@
-import struct
 from exceptions import MaxTransmissionReachedException, IncorrectPayloadTypeException
 
 PAYLOAD_TYPES = [
