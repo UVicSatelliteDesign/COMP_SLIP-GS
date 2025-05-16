@@ -75,42 +75,42 @@ class ReceivedPacket():
 
     def pass_to_application(self):
         '''
-        Passes payload to the application layer according to the address field.
+        Passes payload to the application layer according to the address field (payload_type).
         '''
-        if self.payload is None:
-            print("Invalid packet data. Nothing to pass to application layer.")
+        if self.payload_type is None:
+            print("Invalid packet. Nothing to pass to application layer.")
             return
-        if self.payload == 0b0000:
+        if self.payload_type == 0b0000:
             handle_ping(self.payload) # TODO:
-        elif self.payload == 0b0001:
+        elif self.payload_type == 0b0001:
             handle_nominal(self.payload) # TODO:
-        elif self.payload == 0b0010:
+        elif self.payload_type == 0b0010:
             handle_low_power(self.payload) # TODO:
-        elif self.payload == 0b0011:
+        elif self.payload_type == 0b0011:
             handle_telemetry(self.payload) # TODO:
-        elif self.payload == 0b0100:
+        elif self.payload_type == 0b0100:
             handle_camera1_end(self.payload) # TODO:
-        elif self.payload == 0b0101:
+        elif self.payload_type == 0b0101:
             handle_camera1_mf(self.payload) # TODO:
-        elif self.payload == 0b0110:
+        elif self.payload_type == 0b0110:
             handle_camera2_end(self.payload) # TODO:
-        elif self.payload == 0b0111:
+        elif self.payload_type == 0b0111:
             handle_camera2_mf(self.payload) # TODO:
-        elif self.payload == 0b1000:
-            handle_retransmission(self.payload) # TODO:
-        elif self.payload == 0b1001:
-            handle_error_crc(self.payload) # TODO:
-        elif self.payload == 0b1010:
+        elif self.payload_type == 0b1000:
+            handle_switch(self.payload) # This payload type is only used once to turn on the satellite # TODO:
+        elif self.payload_type == 0b1001:
+            handle_error_peripheral(self.payload) # Type of peripheral malfunction provided in payload in english # TODO:
+        elif self.payload_type == 0b1010:
             handle_error_dup(self.payload) # TODO:
-        elif self.payload == 0b1011:
+        elif self.payload_type == 0b1011:
             handle_erro_lp(self.payload) # TODO:
-        elif self.payload == 0b1100:
-            handle_ack_camer(self.payload) # TODO:
-        elif self.payload == 0b1101:
+        elif self.payload_type == 0b1100:
+            handle_ack_camera(self.payload) # TODO:
+        elif self.payload_type == 0b1101:
             handle_ack_telemetry(self.payload) # TODO:
-        elif self.payload == 0b1110:
+        elif self.payload_type == 0b1110:
             handle_ack_status(self.payload) # TODO:
-        elif self.payload == 0b1111:
+        elif self.payload_type == 0b1111:
             handle_ack_error(self.payload) # TODO:
         else:
             print(f"Unknown address field: {self.payload}. Payload not routed.")
