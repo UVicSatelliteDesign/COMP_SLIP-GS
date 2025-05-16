@@ -1,6 +1,8 @@
 # command_prompt.py
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QComboBox, QPushButton, QLabel
-from utils import is_valid_command, get_binary_from_dict, add_to_buffer, show_acknowledgment
+
+#imports first
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QComboBox, QPushButton, QLabel 
+from utils import is_valid_command, get_binary_from_dict, add_to_queue, show_acknowledgment
 
 class CommandPrompt(QWidget):
     def __init__(self):
@@ -16,9 +18,12 @@ class CommandPrompt(QWidget):
         self.label = QLabel('Select a command:', self)
         layout.addWidget(self.label)
 
-        # Create dropdown (QComboBox) for command selection
+        # Command selection dropdown
         self.command_dropdown = QComboBox(self)
-        self.command_dropdown.addItems(["ping", "nominal", "low power", "telemetry"])  # Use the keys from your dictionary
+        self.command_dropdown.addItems([
+            "ping", "nominal", "low power", "telemetry",
+            "Camera-1-End", "Camera-2-End", "Req Retransmission"
+        ])
         layout.addWidget(self.command_dropdown)
 
         self.submit_button = QPushButton('Submit', self)
@@ -31,14 +36,14 @@ class CommandPrompt(QWidget):
         self.setLayout(layout)
 
     def process_command(self):
-        # Get the selected command from the dropdown
+        # Get the selected command
         command = self.command_dropdown.currentText().strip()
 
         if is_valid_command(command):
-            # Get the binary from the dictionary and add to buffer
+            # Convert and enqueue
             bits = get_binary_from_dict(command)
-            add_to_buffer(bits)
+            add_to_queue(bits)
             show_acknowledgment()
-            self.result_label.setText("Command processed and moved to buffer.")
+            self.result_label.setText("Command processed and moved to queue.")
         else:
             self.result_label.setText("Invalid command.")
