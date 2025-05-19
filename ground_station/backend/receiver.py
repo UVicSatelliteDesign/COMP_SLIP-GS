@@ -1,4 +1,22 @@
 #!/usr/bin/env python
+from backend.pass_app_layer import (
+    handle_ping,
+    handle_nominal,
+    handle_low_power,
+    handle_telemetry,
+    handle_camera1_end,
+    handle_camera1_mf,
+    handle_camera2_end,
+    handle_camera2_mf,
+    handle_req_init_transmission,
+    handle_error_peripheral,
+    handle_error_dup,
+    handle_error_lp,
+    handle_ack_camera,
+    handle_ack_telemetry,
+    handle_ack_status,
+    handle_ack_error
+)
 
 class ReceivedPacket():
     def __init__(self, data: bytes):
@@ -85,15 +103,15 @@ class ReceivedPacket():
         elif self.address == 0b0111:
             handle_camera2_mf(self.payload) # TODO:
         elif self.address == 0b1000:
-            handle_retransmission(self.payload) # TODO:
+            handle_req_init_transmission(self.payload) # TODO:
         elif self.address == 0b1001:
-            handle_error_crc(self.payload) # TODO:
+            handle_error_peripheral(self.payload) # TODO:
         elif self.address == 0b1010:
             handle_error_dup(self.payload) # TODO:
         elif self.address == 0b1011:
-            handle_erro_lp(self.payload) # TODO:
+            handle_error_lp(self.payload) # TODO:
         elif self.address == 0b1100:
-            handle_ack_camer(self.payload) # TODO:
+            handle_ack_camera(self.payload) # TODO:
         elif self.address == 0b1101:
             handle_ack_telemetry(self.payload) # TODO:
         elif self.address == 0b1110:
