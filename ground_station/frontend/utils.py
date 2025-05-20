@@ -1,6 +1,3 @@
-# utils.py
-from collections import deque
-
 # Valid Commands Dictionary
 # Keys - Commands : Values - Binary
 valid_commands = {
@@ -22,7 +19,7 @@ def get_binary_from_dict(command: str) -> str:
     return valid_commands.get(command, "")
 
 # Queue to hold the converted data
-queue = deque()
+queue = []
 
 # Transfer acknowledgment variable
 transfer_acknowledgment = False
@@ -37,7 +34,7 @@ def add_to_queue(bits: str) -> None:
 # Function to retrieve the next item from the queue
 def get_from_queue() -> str | None:
     if queue:
-        return queue.popleft()
+        return queue.pop(0)
     return None
 
 # Function to show acknowledgment message
