@@ -114,15 +114,14 @@ class ReceivedPacket():
             handle_camera2_end(self.payload) # TODO:
         elif self.payload_type == 0b0111:
             handle_camera2_mf(self.payload) # TODO:
-
         elif self.payload_type == 0b1000:
-            handle_switch(self.payload) # This payload type is only used once to turn on the satellite # TODO:
+            handle_req_init_transmission(self.payload) # This payload type is only used once to turn on the satellite # TODO:
         elif self.payload_type == 0b1001:
             handle_error_peripheral(self.payload) # Type of peripheral malfunction provided in payload in english # TODO:
         elif self.payload_type == 0b1010:
             handle_error_dup(self.payload) # TODO:
         elif self.payload_type == 0b1011:
-            handle_erro_lp(self.payload) # TODO:
+            handle_error_lp(self.payload) # TODO:
         elif self.payload_type == 0b1100:
             handle_ack_camera(self.payload) # TODO:
         elif self.payload_type == 0b1101:
