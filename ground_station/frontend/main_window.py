@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
     QTextEdit,
     QSizePolicy,
 )
+import qdarktheme
 
 #import graph class
 #import backend
@@ -52,9 +53,6 @@ class MainWindow(QMainWindow):
             top_info_layout.addLayout(data_row)
 
         left_panel.addLayout(top_info_layout)
-
-        # Add stretch to give more space to image section
-        #left_panel.addStretch()
 
         # Image Section
         image_label = QLabel("Most Recent Image")
@@ -103,6 +101,7 @@ class MainWindow(QMainWindow):
 # Run the application
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    qdarktheme.setup_theme() # Apply dark theme
     window = MainWindow()
     window.show()
     sys.exit(app.exec())    
