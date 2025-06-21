@@ -1,5 +1,8 @@
 # Valid Commands Dictionary
 # Keys - Commands : Values - Binary
+
+from queue import Queue
+
 valid_commands = {
     "ping": "0000",
     "nominal": "0001",
@@ -19,7 +22,8 @@ def get_binary_from_dict(command: str) -> str:
     return valid_commands.get(command, "")
 
 # Queue to hold the converted data
-queue = []
+# queue = [] , not using this anymore.
+queue = Queue()
 
 # Transfer acknowledgment variable
 transfer_acknowledgment = False
@@ -27,14 +31,14 @@ transfer_acknowledgment = False
 # Function to add the converted bits to the Queue
 def add_to_queue(bits: str) -> None:
     global transfer_acknowledgment
-    queue.append(bits)
+    queue.put(bits)
     transfer_acknowledgment = True  # Set transfer acknowledgment to True
     print("Acknowledgment: Data moved to queue.")
 
 # Function to retrieve the next item from the queue
 def get_from_queue() -> str | None:
-    if queue:
-        return queue.pop(0)
+    if not queue.empty():
+        return queue.get()
     return None
 
 # Function to show acknowledgment message
