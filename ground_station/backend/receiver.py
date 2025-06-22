@@ -86,6 +86,8 @@ class ReceivedPacket():
             self.offset = None
             self.sequence_number = None
 
+        # Should we append the payload_type, offset and sequence number directly to the TX_queue?
+
     def __repr__(self):
         return (f"ReceivedPacket(payload_type={self.payload_type}, "
                 f"offset={self.offset}, "

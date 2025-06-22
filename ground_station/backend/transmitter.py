@@ -26,17 +26,21 @@ for type, code in PAYLOAD_TYPES:
 
 MAX_TRANSMISSION_LIMIT = 3 #dummy value small for testing
 
-
+#This class is used to send acknowledgements to the TTC.
 class GroundStationTransmitter():
-    sequence_number = 0
+    gs_sequence_number = 0
 
     def __init__(self, payload_type, payload_data=None, offset=None, command=None):
         self.payload_type = payload_type
         self.payload_data = payload_data
         self.offset = offset
         self.command = command
-        self.__class__.sequence_number+=1
+        self.__class__.gs_sequence_number+=1
+        # TODO add a sequence number of the payload
     
+    def ping(self):
+        # TODO send a ping to the satellite to establish connection
+        pass
 
     def construct_packet(self):
         if self.payload_type not in PAYLOAD_TYPE_DICT.values():
@@ -54,6 +58,8 @@ class GroundStationTransmitter():
                 assert len(self.payload_type) > 0, "Payload length zero, does not exist!"
                 packet.extend(self.payload_data)
                 if self.offset:
+                    # TODO add a payload with the number 1 or 2 based 
+                    # on which type of camera packet the gs has received (camera 1 mf/end or camera 2 mf/end)?
                     assert len(self.offset) > 0, "Offset length zero, does not exists"
                     #Camera Acknowledgement
                     packet.extend(self.offset)
@@ -92,6 +98,7 @@ class GroundStationTransmitter():
 
 
     def transmit_func(self, data: bytes):
+        #TODO refactor retransmission should be able to check for break in communication
         packet_tx_attempts = 0
         while True:
             if packet_tx_attempts <= MAX_TRANSMISSION_LIMIT:
@@ -99,7 +106,7 @@ class GroundStationTransmitter():
                     print(f'Packet {data} transmitted')
                     # TODO Transmit packet to GNU radio
                     break
-                except Exception as e:
+                except Exception as e:  #TODO Communication broken re-establish connection and transmit packets again
                     print(f"Transmission failed: {e}")
                     packet_tx_attempts+=1
                     continue
