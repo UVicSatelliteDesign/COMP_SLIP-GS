@@ -15,13 +15,13 @@ from ground_station.frontend.command_prompt import CommandPrompt
 from ground_station.frontend.utils import add_to_queue, get_from_queue, valid_commands, queue, \
     transfer_acknowledgment
 
-DEFAULT_MAX_COMMANDS = 7 # Default upper-limit for no. of commands used in testing
+DEFAULT_MAX_NO_OF_COMMANDS = 7 # Default upper-limit for no. of commands used in testing
 
 # Hook for optional user input of custom upper-limit for the no. of commands to test with
-def pytest_addoption(parser: pytest.Parser) -> None:
+def pytest_addoption(parser: pytest.Parser):
     """
     `pytest` hook to customize the upper-limit of no. of commands to be used in testing.
-    Default upper limit is stored in `DEFAULT_MAX_COMMANDS`.
+    Default upper limit is stored in `DEFAULT_MAX_NO_OF_COMMANDS`.
 
     :param parser: `pytest` command line parser object.
     """
@@ -29,13 +29,13 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(
         "--max-commands",
         action = "store",
-        default = DEFAULT_MAX_COMMANDS,
+        default = DEFAULT_MAX_NO_OF_COMMANDS,
         type = int,
         help = "Max no. of commands to be used for testing",
     )
 
 
-def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
+def pytest_generate_tests(metafunc: pytest.Metafunc):
     """
     `pytest` hook for dynamic parametrization of test functions.
 
@@ -50,8 +50,8 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
 
         # Error handling of user-input
         if max_commands <= 0 or not isinstance(max_commands, int):
-            print(f"Invalid input for --max-command. Using default value of {DEFAULT_MAX_COMMANDS}")
-            max_commands = DEFAULT_MAX_COMMANDS
+            print(f"Invalid input for --max-commands. Using default value of {DEFAULT_MAX_NO_OF_COMMANDS}")
+            max_commands = DEFAULT_MAX_NO_OF_COMMANDS
         
         metafunc.parametrize("count", range(1, max_commands+1))
 
@@ -81,7 +81,7 @@ def widget(app: QApplication,
     return w
 
 @pytest.fixture
-def reset_queue() -> None:
+def reset_queue():
     """
     Removes all command codes from `queue` in `utils.py`.
     """
@@ -90,7 +90,7 @@ def reset_queue() -> None:
             queue.get()
 
 @pytest.fixture
-def reset_transfer_acknowledgement() -> None:
+def reset_transfer_acknowledgement():
     """
     Resets `transfer_acknowledgment` to `False`.
     """
@@ -133,11 +133,11 @@ class TestCommandPrompt:
 
         # Checks if all components have been correctly created
         assert isinstance(widget.command_dropdown, QComboBox), \
-            f"Expected QComboBox instance, got {type(widget.command_dropdown)}"
+            f"Expected QComboBox instance, got {type(widget.command_dropdown).__name__}"
         assert isinstance(widget.submit_button, QPushButton), \
-            f"Expected QPushButton instance, got {type(widget.submit_button)}"
+            f"Expected QPushButton instance, got {type(widget.submit_button).__name__}"
         assert isinstance(widget.label, QLabel), \
-            f"Expected QLabel instance, got {type(widget.label)}"
+            f"Expected QLabel instance, got {type(widget.label).__name__}"
 
         # Checks if the no. of commands in drop-down is same as the no. of valid commands
         assert widget.command_dropdown.count() == len(valid_commands), \
@@ -148,7 +148,7 @@ class TestCommandPrompt:
                           for i in range(widget.command_dropdown.count())]
         
         for command in dropdown_items:
-            assert command in valid_commands.keys(), "Invalid command given as option"
+            assert command in valid_commands.keys(), f"Invalid command \"{command}\" given as option"
 
 
     def test_drop_down_and_submit_button_functionality(self,
@@ -197,10 +197,10 @@ class TestCommandPrompt:
         
         # Checks if all commands were enqueued in the correct order
         for command in commands_submitted:
-            dequeued_command = queue.get()
+            dequeued_command_code = queue.get()
 
-            assert dequeued_command == valid_commands[command], \
-                f"Expected {dequeued_command}, got {valid_commands[command]}"
+            assert dequeued_command_code == valid_commands[command], \
+                f"Expected {dequeued_command_code}, got {valid_commands[command]}"
 
 
     def test_process_command_invalid_command_handling(self,
@@ -215,7 +215,7 @@ class TestCommandPrompt:
         Tests if `process_command()` processes invalid commands correctly.
 
         :param app: Fixture providing `Qt` application context.
-        :param widget: Fixture an instance of `CommandPrompt`.
+        :param widget: Fixture providing an instance of `CommandPrompt`.
         :param monkeypatch: Fixture to patch `currentText()` of `widget.command_dropdown`.
         :param reset_queue: Fixture to reset `queue` in `utils.py` after testing.
         :param reset_transfer_acknowledgement: Fixture to reset `transfer_acknowledgement` in `utils.py` 
@@ -228,9 +228,11 @@ class TestCommandPrompt:
 
         # Mock version of currentText() method of QComboBox
         def fake_current_text():
+            nonlocal dummy_command
             return dummy_command
         
-        # Monkey-patch currentText() method of command_dropdown to have control over command processed
+        # Monkey-patch currentText() method of command_dropdown with fake_current_text() to have 
+        # control over commands selected
         monkeypatch.setattr(widget.command_dropdown, "currentText", fake_current_text)
 
         # Checks if process_command() uploads invalid commands to queue
@@ -260,7 +262,7 @@ class TestCommandPrompt:
         Tests if `process_command()` processes a mix of valid and invalid commands correctly.
 
         :param app: Fixture providing `Qt` application context.
-        :param widget: Fixture an instance of `CommandPrompt`.
+        :param widget: Fixture providing an instance of `CommandPrompt`.
         :param monkeypatch: Fixture to patch `currentText()` of `widget.command_dropdown`.
         :param reset_queue: Fixture to reset `queue` in `utils.py` after testing.
         :param reset_transfer_acknowledgement: Fixture to reset `transfer_acknowledgement` in `utils.py` 
@@ -279,9 +281,11 @@ class TestCommandPrompt:
 
         # Mock version of currentText() method of QComboBox
         def fake_current_text():
+            nonlocal dummy_command
             return dummy_command
         
-        # Monkey-patch currentText() method of command_dropdown to have control over command processed
+        # Monkey-patch currentText() method of command_dropdown with fake_current_text() to have 
+        # control over commands selected
         monkeypatch.setattr(widget.command_dropdown, "currentText", fake_current_text)
 
         # Submits all commands in sample_commands
