@@ -32,6 +32,8 @@ class ReceivedPacket():
         self.offset = None
         self.sequence_number = None
 
+        # TODO Listen for a ping Ack and set a flag to identify if a conncetion is set up
+        
         try:
             # Total bits in data
             total_bits = len(data) * 8

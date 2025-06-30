@@ -1,4 +1,6 @@
-from exceptions import MaxTransmissionReachedException, IncorrectPayloadTypeException
+import json
+
+from exceptions import MaxTransmissionReachedException, IncorrectPayloadTypeException, IncorrectCommandTypeException
 
 PAYLOAD_TYPES = [
     ('Ping',                0b0000),
@@ -9,7 +11,7 @@ PAYLOAD_TYPES = [
     ('Camera-1-MF',         0b0101),
     ('Camera-2-End',        0b0110),
     ('Camera-2-MF',         0b0111),
-    ('Request Retransmit',  0b1000),
+    ('Request Retransmittion',  0b1000),
     ('Error-CRC',           0b1001),
     ('Error-Duplication',   0b1010),
     ('Error-Low Power',     0b1011),
@@ -30,74 +32,95 @@ MAX_TRANSMISSION_LIMIT = 3 #dummy value small for testing
 class GroundStationTransmitter():
     gs_sequence_number = 0
 
-    def __init__(self, payload_type, payload_data=None, offset=None, command=None):
+    def __init__(self, seq_num=None, payload_type=None, payload_data=None, offset=None):
         self.payload_type = payload_type
         self.payload_data = payload_data
         self.offset = offset
-        self.command = command
-        self.__class__.gs_sequence_number+=1
-        # TODO add a sequence number of the payload
-    
-    def ping(self):
-        # TODO send a ping to the satellite to establish connection
-        pass
+        self.sequence_number = seq_num
+        self.packet_sendonly_command = False
 
-    def construct_packet(self):
+    def construct_packet(self, packet):
         if self.payload_type not in PAYLOAD_TYPE_DICT.values():
             raise IncorrectPayloadTypeException(f"Invalid payload type: {[type for type, code in PAYLOAD_TYPE_DICT.items() if code == self.payload_type]}")
         
-        #initialize byte array
-        packet = bytearray()
-
-        packet.extend(self.payload_type)
-
         try:
-            if self.payload_data:
-                #sending acknowledgement
-                #attach payload_data to packet
+            # Check if packet is a command? if yes then only add the payload sequence number and our sequence number
+            if not self.packet_sendonly_command:
                 assert len(self.payload_type) > 0, "Payload length zero, does not exist!"
-                packet.extend(self.payload_data)
+
+                if(self.payload_type):
+                    packet.append(self.payload_type)
+
                 if self.offset:
+                    # Handling camera data
                     # TODO add a payload with the number 1 or 2 based 
                     # on which type of camera packet the gs has received (camera 1 mf/end or camera 2 mf/end)?
+                    if(self.payload_type == PAYLOAD_TYPE_DICT["Camera-1-End"]):
+                        packet.append(b'1End')
+                    if(self.payload_type == PAYLOAD_TYPE_DICT["Camera-1-MF"]):
+                        packet.append(b'1MF')
+                    if(self.payload_type == PAYLOAD_TYPE_DICT["Camera-2-End"]):
+                        packet.append(b'2End')
+                    if(self.payload_type == PAYLOAD_TYPE_DICT["Camera-2-MF"]):
+                        packet.append(b'2MF')
+
                     assert len(self.offset) > 0, "Offset length zero, does not exists"
+                    
                     #Camera Acknowledgement
-                    packet.extend(self.offset)
-            
-            if not self.payload_data and self.command:
-                #Sending command no payload_data
-                packet.extend(self.command)
+                    payload_length = len(self.payload_data)
+                    payload_len_byte = payload_length.to_bytes(1, byteorder='big')
+                    packet.append(self.offset + payload_len_byte)
+        
+            # Add payload sequence number
+            if(self.sequence_number):
+                packet.append(self.sequence_number)
+
+            # Finally add the GS sequence number
+            gs_seq_num = GroundStationTransmitter.gs_sequence_number
+            gs_seq_num_bytes = gs_seq_num.to_bytes(1, byteorder='big')
+            packet.append(gs_seq_num_bytes)
+            GroundStationTransmitter.gs_sequence_number += 1
+
         except AssertionError as e:
             print(f"Assertion error {e}")
         except Exception as e:
             print(f"Error occured {e}")
-        
-        # Add sequence number at the end
-        # first we need to calculate the number of bytes the sequence number will take in binary representation
-        num_bytes = ((self.sequence_number.bit_length()) + 7) // 8  
-        seq_num_bytes = self.sequence_number.to_bytes(num_bytes, byteorder='big')
-
-        packet.extend(seq_num_bytes)
 
         return packet
+    
+    def ping(self):
+        # initialize the ping packet
+        packet = bytearray()
+        packet.append(PAYLOAD_TYPE_DICT['Ping'])
 
+        ping_packet = self.construct_packet(packet)
 
-    def transmit_packet(self):
-        '''
-        Transit the constructed packet by calling the transmit function
+        self.transmit_func(ping_packet)
+
+    # Check the commands queue in the main file for any incoming commands, if yes then send that command data type.
+    def command(self, command):
+        # command should be found in the PAYLOAD_TYPE_DICT
+        if command not in PAYLOAD_TYPE_DICT.keys():
+            raise IncorrectCommandTypeException(f'Invalid command type: {command}')
         
-        transmit_func accepts a bytes object
-        '''
-        try:
-            packet = self.construct_packet()
-            self.transmit_func(packet)
-        except MaxTransmissionReachedException as e:
-            print(f"Transmission failed after maximum attempts: {e}")
-        except IncorrectPayloadTypeException as e:
-            print(f"Incorrect payload type {e}")
+        self.packet_sendonly_command = True
+        packet = bytearray()
+        packet.append(PAYLOAD_TYPE_DICT[command])
+
+        command_packet = self.construct_packet(packet)
+
+        self.transmit_func(command_packet)
+
+    def ack(self):
+        # TODO construct an ACK packet
+        pass
+
+    def N_ack(self):
+        # TODO construct an Negative ACK packet, is it needed?
+        pass
 
 
-    def transmit_func(self, data: bytes):
+    def transmit_func(self, data: bytearray):
         #TODO refactor retransmission should be able to check for break in communication
         packet_tx_attempts = 0
         while True:
@@ -112,15 +135,3 @@ class GroundStationTransmitter():
                     continue
             else:
                 raise MaxTransmissionReachedException(f'Max tranmission limit reached: {packet_tx_attempts}')
-
-# ================================================  testing code
-def test_groundstation():
-    gstx = GroundStationTransmitter(0b1111.to_bytes(1, 'big'))
-    print(f'Sequence number {gstx.sequence_number}')
-    gstx.construct_packet()
-    gstx.transmit_packet()
-
-# prints out sequence numbers till ten --> Transmit 10 packets
-for i in range(10):
-    test_groundstation()
-    i+=1

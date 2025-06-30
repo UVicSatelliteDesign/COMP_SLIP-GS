@@ -5,6 +5,8 @@ GLOBAL_TX_QUEUE = queue.Queue()
 
 def handle_ping(payload: bytes):
     # Send ping acknowledgement with ping data type.
+    # Handle Ping ACK packet. No data to send to backend.
+    
     pass # TODO
 
 def handle_nominal(payload: bytes):
