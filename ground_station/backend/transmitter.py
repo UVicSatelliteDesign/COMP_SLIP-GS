@@ -1,5 +1,3 @@
-import json
-
 from exceptions import MaxTransmissionReachedException, IncorrectPayloadTypeException, IncorrectCommandTypeException
 
 PAYLOAD_TYPES = [
@@ -32,44 +30,45 @@ MAX_TRANSMISSION_LIMIT = 3 #dummy value small for testing
 class GroundStationTransmitter():
     gs_sequence_number = 0
 
-    def __init__(self, seq_num=None, payload_type=None, payload_data=None, offset=None):
+    def __init__(self,  payload_type=None, payload_data=None, payload_length=0, seq_num=None, offset=None):
         self.payload_type = payload_type
         self.payload_data = payload_data
+        self.payload_length = payload_length
         self.offset = offset
         self.sequence_number = seq_num
-        self.packet_sendonly_command = False
+        self.sendonly_command = False
 
     def construct_packet(self, packet):
-        if self.payload_type not in PAYLOAD_TYPE_DICT.values():
-            raise IncorrectPayloadTypeException(f"Invalid payload type: {[type for type, code in PAYLOAD_TYPE_DICT.items() if code == self.payload_type]}")
-        
         try:
             # Check if packet is a command? if yes then only add the payload sequence number and our sequence number
-            if not self.packet_sendonly_command:
-                assert len(self.payload_type) > 0, "Payload length zero, does not exist!"
-
-                if(self.payload_type):
-                    packet.append(self.payload_type)
+            if not self.sendonly_command:
+                assert len(self.payload_data) > 0, "Payload length zero, does not exist!"
 
                 if self.offset:
+                    assert len(self.offset) > 0, "Offset length zero, does not exists"
                     # Handling camera data
-                    # TODO add a payload with the number 1 or 2 based 
+                    # add a payload with the number 1 or 2 based 
                     # on which type of camera packet the gs has received (camera 1 mf/end or camera 2 mf/end)?
                     if(self.payload_type == PAYLOAD_TYPE_DICT["Camera-1-End"]):
-                        packet.append(b'1End')
+                        packet.append(b'\x01')
                     if(self.payload_type == PAYLOAD_TYPE_DICT["Camera-1-MF"]):
-                        packet.append(b'1MF')
+                        packet.append(b'\x01')
                     if(self.payload_type == PAYLOAD_TYPE_DICT["Camera-2-End"]):
-                        packet.append(b'2End')
+                        packet.append(b'\x02')
                     if(self.payload_type == PAYLOAD_TYPE_DICT["Camera-2-MF"]):
-                        packet.append(b'2MF')
-
-                    assert len(self.offset) > 0, "Offset length zero, does not exists"
+                        packet.append(b'\x02')
                     
-                    #Camera Acknowledgement
-                    payload_length = len(self.payload_data)
-                    payload_len_byte = payload_length.to_bytes(1, byteorder='big')
-                    packet.append(self.offset + payload_len_byte)
+                    #Camera Acknowledgement (Attach Offset)
+                    offset_number = int.from_bytes(self.offset, byteorder='big')
+                    offset_num = self.payload_length + offset_number
+
+                    #Calculate the number of bytes needed to store offset number
+                    offset_bits = offset_num.bit_length()
+                    offset_bytes = (offset_bits + 7) // 8
+
+                    #Convert the offset to bytes and attach it
+                    final_offset_bytes = offset_num.to_bytes(offset_bytes, byteorder='big')
+                    packet.append(final_offset_bytes)
         
             # Add payload sequence number
             if(self.sequence_number):
@@ -103,7 +102,7 @@ class GroundStationTransmitter():
         if command not in PAYLOAD_TYPE_DICT.keys():
             raise IncorrectCommandTypeException(f'Invalid command type: {command}')
         
-        self.packet_sendonly_command = True
+        self.sendonly_command = True
         packet = bytearray()
         packet.append(PAYLOAD_TYPE_DICT[command])
 
@@ -113,7 +112,14 @@ class GroundStationTransmitter():
 
     def ack(self):
         # TODO construct an ACK packet
-        pass
+        if self.payload_type not in PAYLOAD_TYPE_DICT.values():
+            raise IncorrectPayloadTypeException(f"Invalid payload type: {[type for type, code in PAYLOAD_TYPE_DICT.items() if code == self.payload_type]}")
+        
+        packet = bytearray()
+        packet.append(self.payload_type)
+
+        ack_packet = self.construct_packet(packet)
+        self.transmit_func(ack_packet)
 
     def N_ack(self):
         # TODO construct an Negative ACK packet, is it needed?
