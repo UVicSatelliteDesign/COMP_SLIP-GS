@@ -30,11 +30,11 @@ class DataHandler:
         
         # Create directories if they don't exist, with error handling
         try:
-            os.makedirs(self.image_dir, exist_ok=True)      # -p flag equivalent (no error if exists)
-            os.makedirs(self.telemetry_dir, exist_ok=True)  # Create telemetry directory
+            os.makedirs(self.image_dir, exist_ok=True)
+            os.makedirs(self.telemetry_dir, exist_ok=True)
         except OSError as e:
             print(f"Directory creation failed: {e}")
-            raise  # Re-raise exception to notify calling code
+            raise
 
     def process_packet(self, packet):
         """
@@ -44,27 +44,25 @@ class DataHandler:
             packet (bytes): Raw binary packet data received from satellite
         """
         try:
-            # Development-time validation checks (can be disabled with Python -O flag)
+            # Development-time validation checks
             assert isinstance(packet, bytes), "Packet must be in bytes format"
-            assert len(packet) >= 4, "Packet must contain at least 4 bytes (header)"
+            assert len(packet) >= 5, "Packet must contain at least 5 bytes (1 byte type + 4 byte header)"
             
-            # Extract packet type from first 4 bytes
-            data_type = packet[:4]  # Packet type identifier
-            payload = packet[4:]    # Actual payload data
+            # Extract payload type from first byte
+            payload_type = packet[0]  # 1 byte payload type identifier
+            payload = packet[1:]       # Actual payload data
 
-            # Route to appropriate handler based on packet type
-            if data_type == b"\x00\x00\x00\x10":  # Telemetry packet identifier
+            # Route to appropriate handler based on payload type
+            if payload_type == 0x10:  # Telemetry packet identifier
                 self.handle_telemetry_data(payload)
-            elif data_type in [b"\x00\x00\x00\x11", b"\x00\x00\x01\x00"]:  # Camera packet identifiers
+            elif payload_type in [0x11, 0x12]:  # Camera packet identifiers
                 self.handle_camera_data(payload)
             else:
-                print(f"Unknown packet type: {data_type}")  # Unrecognized packet type
+                print(f"Unknown payload type: {payload_type}")
 
         except AssertionError as e:
-            # Handle failed validation assertions
             print(f"Invalid packet format: {e}")
         except Exception as e:
-            # Catch-all for other processing errors
             print(f"Packet processing failed: {e}")
 
     def handle_camera_data(self, payload):
@@ -74,34 +72,35 @@ class DataHandler:
         Args:
             payload (bytes): Camera-specific payload data
         """
-        global DATA_SAVED  # Access the global camera data saved flag
+        global DATA_SAVED
         
         try:
-            # Validate payload meets minimum size requirements
-            assert len(payload) >= 11, f"Camera payload requires at least 11 bytes, got {len(payload)}"
+            # Validate payload meets minimum size requirements (8B ID + 2B seq + 3B offset + data)
+            assert len(payload) >= 13, f"Camera payload requires at least 13 bytes, got {len(payload)}"
             
             # Parse the payload into its components
-            identifier, offset, image_data = self.parse_camera_payload(payload)
+            identifier, seq_num, offset, image_data = self.parse_camera_payload(payload)
             
             # Generate filename using identifier and sequence number
             file_path = os.path.join(
                 self.image_dir, 
-                f"{identifier}_{DataHandler.sequence_number}.pkl"  # Using pickle format
+                f"{identifier}_{seq_num}.pkl"  # Using sequence number from packet
             )
 
             # Write image data to file with error handling
             try:
                 # 'wb' mode if offset=0 (new file), 'ab' if offset>0 (append to existing)
                 with open(file_path, "wb" if offset == 0 else "ab") as f:
-                    f.write(image_data)  # Write binary image data
+                    f.write(image_data)
             except IOError as e:
                 print(f"Failed to write image: {e}")
-                return  # Abort on file write failure
+                return
 
             # Update tracking information
-            self.recent_files[identifier] = file_path  # Track most recent file
-            DATA_SAVED = True                         # Update global flag
-            DataHandler.sequence_number += 1           # Increment class sequence counter
+            self.recent_files[identifier] = file_path
+            DATA_SAVED = True
+            # Update class sequence number to last received + 1
+            DataHandler.sequence_number = (seq_num + 1) & 0xFFFF  # Ensure 16-bit wrap-around
 
         except AssertionError as e:
             print(f"Invalid camera data: {e}")
@@ -115,7 +114,7 @@ class DataHandler:
         Args:
             payload (bytes): Telemetry-specific payload data
         """
-        global TELEMETRY_SAVED  # Access the global telemetry saved flag
+        global TELEMETRY_SAVED
         
         try:
             # Validate payload contains data
@@ -123,7 +122,7 @@ class DataHandler:
             
             # Parse the raw payload into a list of values
             values = self.parse_telemetry_payload(payload)
-            if not values:  # Skip if parsing failed
+            if not values:
                 return
 
             # Set up CSV file path
@@ -131,25 +130,22 @@ class DataHandler:
 
             # Initialize headers on first packet if needed
             if not self.global_headers:
-                # Create default headers (Field_0, Field_1, etc.) matching value count
                 self.global_headers = [f"Field_{i}" for i in range(len(values))]
 
             # Write to CSV file with error handling
             try:
-                with open(csv_file, "a", newline="") as f:  # 'a' for append mode
+                with open(csv_file, "a", newline="") as f:
                     writer = csv.writer(f)
                     
-                    # Write header only if file is empty/new
                     if os.stat(csv_file).st_size == 0:
                         writer.writerow(self.global_headers)
                     
-                    # Write the current values row
                     writer.writerow(values)
             except IOError as e:
                 print(f"Failed to write telemetry: {e}")
-                return  # Abort on file write failure
+                return
 
-            TELEMETRY_SAVED = True  # Update global flag
+            TELEMETRY_SAVED = True
 
         except AssertionError as e:
             print(f"Invalid telemetry: {e}")
@@ -158,40 +154,29 @@ class DataHandler:
 
     def parse_camera_payload(self, payload):
         """
-        Decodes camera payload into its components using specific binary format
+        Decodes camera payload into its components using new binary format
         
         Args:
             payload (bytes): Raw camera payload data
             
         Returns:
-            tuple: (identifier, offset, image_data)
+            tuple: (identifier, sequence_number, offset, image_data)
             
         Format:
             - First 8 bytes: ASCII identifier
-            - Last 3 bytes: 17-bit offset (bits distributed across 3 bytes)
-            - Middle: Image data
+            - Next 2 bytes: Sequence number (big-endian)
+            - Next 3 bytes: Offset 
+            - Remaining bytes: Image data
         """
         try:
-            # Extract 8-byte identifier and decode to ASCII
             identifier = payload[:8].decode('ascii', errors='replace').strip()
-            
-            # Extract last 3 bytes for offset calculation
-            offset_bytes = payload[-3:]
-            
-            # Calculate 17-bit offset from the 3 bytes:
-            # - First byte: Take 5 bits (mask with 0x1F) and shift left 12
-            # - Second byte: Take all 8 bits and shift left 4
-            # - Third byte: Take upper 4 bits (shift right 4)
-            offset = ((offset_bytes[0] & 0x1F) << 12) | \
-                     (offset_bytes[1] << 4) | \
-                     (offset_bytes[2] >> 4)
-            
-            # Return components (identifier, calculated offset, image data)
-            return identifier, offset, payload[8:-3]
+            seq_num = int.from_bytes(payload[8:10], 'big')  # 2-byte sequence number
+            offset = int.from_bytes(payload[10:13], 'big')  # 3-byte offset
+            return identifier, seq_num, offset, payload[13:]
             
         except Exception as e:
             print(f"Camera payload parsing failed: {e}")
-            raise  # Re-raise as this is a critical failure
+            raise
 
     def parse_telemetry_payload(self, payload):
         """
@@ -204,12 +189,9 @@ class DataHandler:
             list: Cleaned values extracted from payload
         """
         try:
-            # Decode bytes to ASCII, with error replacement for invalid chars
             decoded = payload.decode('ascii', errors='replace').strip()
-            
-            # Split by commas, strip whitespace, and filter empty strings
             return [x.strip() for x in decoded.split(",") if x.strip()]
             
         except Exception as e:
             print(f"Telemetry parsing failed: {e}")
-            return []  # Return empty list on failure
+            return []
