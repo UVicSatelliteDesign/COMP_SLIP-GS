@@ -29,22 +29,20 @@ class DataAPI:
                 yield row
 
 
-    # Finding the Most Recent Row (updated to just read last line)
+    # Finding the Most Recent Row (reads last line only)
     def _latest(self):
         with open(self.csv_path, newline="") as f:
             rows = list(csv.DictReader(f))
             if not rows:
-                return None, None
-            latest_row = rows[-1]
-            
-            return latest_row          # Return the last row (assumed to be the latest)
+                return None
+            return rows[-1]  # Return the last row (assumed to be the latest)
 
 
     # public getters
 
-    # Calls _latest(), grabs the row dict, converts the value field to : float, or returns None on any error.
+    # Gets the latest value from the last row
     def get_latest_value(self) -> float | None:
-        _, row = self._latest()
+        row = self._latest()
         if row and self.value_col in row:
             try:
                 return float(row[self.value_col])
@@ -52,10 +50,13 @@ class DataAPI:
                 pass
         return None
 
-    # Takes the datetime object from _latest(), 
-    # formats it back to : the original string format, or None if there was no valid timestamp
+    # Gets the timestamp from the last row
     def get_latest_timestamp(self) -> str | None:
-        t, _ = self._latest()
-        if t:
-            return t.strftime(self.fmt)
+        row = self._latest()
+        if row and self.timestamp_col in row:
+            try:
+                t = datetime.strptime(row[self.timestamp_col], self.fmt)
+                return t.strftime(self.fmt)
+            except Exception:
+                pass
         return None
