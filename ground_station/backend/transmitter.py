@@ -63,8 +63,9 @@ class GroundStationTransmitter():
                     offset_num = self.payload_length + offset_number
 
                     #Calculate the number of bytes needed to store offset number
-                    offset_bits = offset_num.bit_length()
-                    offset_bytes = (offset_bits + 7) // 8
+                    # offset_bits = offset_num.bit_length()
+                    # offset_bytes = (offset_bits + 7) // 8
+                    offset_bytes = 3 # As per documentation
 
                     #Convert the offset to bytes and attach it
                     final_offset_bytes = offset_num.to_bytes(offset_bytes, byteorder='big')
@@ -121,13 +122,7 @@ class GroundStationTransmitter():
         ack_packet = self.construct_packet(packet)
         self.transmit_func(ack_packet)
 
-    def N_ack(self):
-        # TODO construct an Negative ACK packet, is it needed?
-        pass
-
-
     def transmit_func(self, data: bytearray):
-        #TODO refactor retransmission should be able to check for break in communication
         packet_tx_attempts = 0
         while True:
             if packet_tx_attempts <= MAX_TRANSMISSION_LIMIT:

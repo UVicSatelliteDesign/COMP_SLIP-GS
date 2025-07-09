@@ -1,8 +1,4 @@
 #!/usr/bin/env python
-from backend.pass_app_layer import (
-    handle_telemetry_data,
-    handle_camera_data,
-)
 
 class ReceivedPacket():
     def __init__(self, data: bytes):
@@ -18,8 +14,6 @@ class ReceivedPacket():
         self.offset = None
         self.sequence_number = None
         self.payload_length = 0
-
-        # TODO Listen for a ping Ack and set a flag to identify if a conncetion is set up
 
         try:
             # Total bits in data

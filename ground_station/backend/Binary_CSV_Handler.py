@@ -14,7 +14,7 @@ class DataHandler:
     # Class-level variable shared across all instances
     sequence_number = 0  # Tracks the sequence number of packets for ordering
 
-    def __init__(self, image_dir="images", telemetry_dir="telemetry"):
+    def __init__(self, data_type, payload=None, image_dir="images", telemetry_dir="telemetry"):
         """
         Initialize the data handler with storage directories
         
@@ -25,6 +25,8 @@ class DataHandler:
         # Initialize instance variables
         self.image_dir = image_dir         # Directory for image storage
         self.telemetry_dir = telemetry_dir # Directory for telemetry data
+        self.data_type = data_type
+        self.payload = payload
         self.recent_files = {}             # Dictionary to track most recent files by identifier
         self.global_headers = []           # List to store CSV column headers for telemetry data
         
@@ -36,7 +38,7 @@ class DataHandler:
             print(f"Directory creation failed: {e}")
             raise  # Re-raise exception to notify calling code
 
-    def process_packet(self, packet):
+    def process_packet(self):
         """
         Main packet processing router that validates and directs packets to appropriate handlers
         
@@ -45,20 +47,21 @@ class DataHandler:
         """
         try:
             # Development-time validation checks (can be disabled with Python -O flag)
-            assert isinstance(packet, bytes), "Packet must be in bytes format"
-            assert len(packet) >= 4, "Packet must contain at least 4 bytes (header)"
+            # assert isinstance(packet, bytes), "Packet must be in bytes format"
+            # assert len(packet) >= 4, "Packet must contain at least 4 bytes (header)"
             
             # Extract packet type from first 4 bytes
-            data_type = packet[:4]  # Packet type identifier
-            payload = packet[4:]    # Actual payload data
+            # data_type = packet[:4]  # Packet type identifier
+            # payload = packet[4:]    # Actual payload data
+
 
             # Route to appropriate handler based on packet type
-            if data_type == b"\x00\x00\x00\x10":  # Telemetry packet identifier
-                self.handle_telemetry_data(payload)
-            elif data_type in [b"\x00\x00\x00\x11", b"\x00\x00\x01\x00"]:  # Camera packet identifiers
-                self.handle_camera_data(payload)
+            if self.data_type == b"\x00\x00\x00\x10":  # Telemetry packet identifier
+                self.handle_telemetry_data(self.payload)
+            elif self.data_type in [b"\x00\x00\x00\x11", b"\x00\x00\x01\x00"]:  # Camera packet identifiers
+                self.handle_camera_data(self.payload)
             else:
-                print(f"Unknown packet type: {data_type}")  # Unrecognized packet type
+                print(f"Unknown packet type: {self.payload}")  # Unrecognized packet type
 
         except AssertionError as e:
             # Handle failed validation assertions
@@ -85,7 +88,7 @@ class DataHandler:
             
             # Generate filename using identifier and sequence number
             file_path = os.path.join(
-                self.image_dir, 
+                self.image_dir,
                 f"{identifier}_{DataHandler.sequence_number}.pkl"  # Using pickle format
             )
 
