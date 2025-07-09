@@ -1,4 +1,3 @@
-
 # data_api.py
 
 import csv                      # for reading csv files
@@ -30,19 +29,15 @@ class DataAPI:
                 yield row
 
 
-    # Finding the Most Recent Row
+    # Finding the Most Recent Row (updated to just read last line)
     def _latest(self):
-        latest_row = None
-        latest_time = None
-        for row in self._rows():
-            try:
-                t = datetime.strptime(row[self.timestamp_col], self.fmt)
-            except Exception:
-                continue
-            if latest_time is None or t > latest_time:
-                latest_time = t
-                latest_row = row
-        return latest_time, latest_row          # At the end, return a tuple (latest_time, latest_row_dict)
+        with open(self.csv_path, newline="") as f:
+            rows = list(csv.DictReader(f))
+            if not rows:
+                return None, None
+            latest_row = rows[-1]
+            
+            return latest_row          # Return the last row (assumed to be the latest)
 
 
     # public getters
