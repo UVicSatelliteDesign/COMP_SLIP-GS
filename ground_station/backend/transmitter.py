@@ -10,9 +10,9 @@ PAYLOAD_TYPES = [
     ('Camera-2-End',        0b0110),
     ('Camera-2-MF',         0b0111),
     ('Request Retransmittion',  0b1000),
-    ('Error-CRC',           0b1001),
+    ('Error-Peripheral',           0b1001),
     ('Error-Duplication',   0b1010),
-    ('Error-Low Power',     0b1011),
+    ('Error-Low-Power',     0b1011),
     ('Ack Rec Camera',      0b1100),
     ('Ack Rec Telemetry',   0b1101),
     ('Ack Rec Status',      0b1110),
@@ -70,14 +70,18 @@ class GroundStationTransmitter():
                     #Convert the offset to bytes and attach it
                     final_offset_bytes = offset_num.to_bytes(offset_bytes, byteorder='big')
                     packet.append(final_offset_bytes)
-        
+
+            # In case of a sendonly command set it false once handled.
+            if self.sendonly_command:
+                self.sendonly_command = False
+            
             # Add payload sequence number
             if(self.sequence_number):
                 packet.append(self.sequence_number)
 
             # Finally add the GS sequence number
             gs_seq_num = GroundStationTransmitter.gs_sequence_number
-            gs_seq_num_bytes = gs_seq_num.to_bytes(1, byteorder='big')
+            gs_seq_num_bytes = gs_seq_num.to_bytes(2, byteorder='big')
             packet.append(gs_seq_num_bytes)
             GroundStationTransmitter.gs_sequence_number += 1
 

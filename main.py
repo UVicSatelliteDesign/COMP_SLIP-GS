@@ -1,4 +1,3 @@
-#!usr/bin/env python3
 import sys
 import os
 import threading
@@ -10,7 +9,7 @@ from ground_station.backend.receiver import ReceivedPacket
 from ground_station.backend.Binary_CSV_Handler import DataHandler
 from ground_station.backend.bin_to_jpeg import BinToJPEG
 from ground_station.backend.graph_plot import ExpandingGraph
-
+from ground_station.backend.exceptions import MaxTransmissionReachedException, IncorrectCommandTypeException, IncorrectPayloadTypeException
 ST_IDLE = 1
 ST_LOST = 0
 ST_RETRANSMISSION = 2
@@ -53,7 +52,6 @@ def main():
         if(gs_rx.payload_type == PAYLOAD_TYPE_DICT['Ping']):
           ping_ack_recieved = True
           print("Got Ping acknowledgement")
-          break
       except Empty:
         print("Queue empty")
       CURRENT_STATE = ST_IDLE
@@ -73,32 +71,55 @@ def main():
       # Init transmitter
       gs_tx = GroundStationTransmitter(payload_type, payload_data, payload_length, seq_num, offset)
 
-      # Data handling
-      if(payload_type in [PAYLOAD_TYPE_DICT['Telemetry'],
+      if payload_type in [PAYLOAD_TYPE_DICT['Telemetry'],
                           PAYLOAD_TYPE_DICT['Camera-1-End'],
                           PAYLOAD_TYPE_DICT['Camera-1-MF'],
                           PAYLOAD_TYPE_DICT['Camera-2-End'],
-                          PAYLOAD_TYPE_DICT['Camera-2-MF']]):
-        # We have recieved telemetry/image data here pass it to the handler
-        data_handler = DataHandler(payload_type, payload_data)
-        
-        # process data and create .pkl and .csv files.
-        data_handler.process_packet()
+                          PAYLOAD_TYPE_DICT['Camera-2-MF'],
+                          PAYLOAD_TYPE_DICT['Error-Peripheral'],
+                          PAYLOAD_TYPE_DICT['Error-Low-Power']]:
+        try:
+          # Send Acknowledgements.
+          gs_tx.ack()
+        except [MaxTransmissionReachedException, IncorrectPayloadTypeException] as e:
+          print(f'Error sending acknowledgements {e}')
+          
+        if payload_type in [PAYLOAD_TYPE_DICT['Telemetry'],
+                            PAYLOAD_TYPE_DICT['Camera-1-End'],
+                            PAYLOAD_TYPE_DICT['Camera-1-MF'],
+                            PAYLOAD_TYPE_DICT['Camera-2-End'],
+                            PAYLOAD_TYPE_DICT['Camera-2-MF']]:
+          # DATA HANDLING
+          # We have recieved telemetry/image data here pass it to the handler
+          data_handler = DataHandler(payload_type, payload_data)
+          
+          # process data and create .pkl and .csv files.
+          data_handler.process_packet()
 
-      # Check if images directory exists and is not empty
-      if os.path.isdir('images') and os.listdir('images'):
-        bin_to_jpeg = BinToJPEG()
+          # Check if images directory exists and is not empty
+          if os.path.isdir('images') and os.listdir('images'):
+            bin_to_jpeg = BinToJPEG()
+          
+          # Stubs according to the init for graph_plot def __init__(self, x_file, y_file, x_label, y_label, title):
+          x_file = ""
+          y_file = ""
+          x_label = ""
+          y_label = ""
+          # Check if telemetry directory exists and is not empty
+          if os.path.isdir('telemetry') and os.listdir('telemetry'):
+            graph_plot = ExpandingGraph(x_file, y_file, x_label, y_label)
       
-      # Stubs accroding to the init for graph_plot def __init__(self, x_file, y_file, x_label, y_label, title):
-      x_file = ""
-      y_file = ""
-      x_label = ""
-      y_label = ""
-      # Check if telemetry directory exists and is not empty
-      if os.path.isdir('telemetry') and os.listdir('telemetry'):
-        graph_plot = ExpandingGraph(x_file, y_file, x_label, y_label)
+      # Commands prompts
+      # TX_queue will checked, if not empty that means that commands are there to be sent to the satellite.
+      try:
+        command = TX_queue.get(timeout=3)
+      except Empty:
+        print("Queue Empty")
+      
+      try:
+        gs_tx.command(command)
+      except IncorrectCommandTypeException:
+        print("Incorrect command: cannot transmit")
 
-  return 0
-
-if __name__=="__main__":
-  exit(main())
+    # Implement backend worker.
+    
