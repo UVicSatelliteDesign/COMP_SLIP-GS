@@ -2,9 +2,8 @@
 
 import csv                      # for reading csv files
 from pathlib import Path  
-from datetime import datetime
+
 # Path: From pathlib, makes file-path manipulation (and cross-platform paths) easier.
-# datetime: We need this to parse the timestamp strings into real date/time objects, so we can compare which row is newest.
 
 class DataAPI:
     """
@@ -14,20 +13,16 @@ class DataAPI:
     def __init__(self,
                  csv_path: Path,
                  timestamp_col: str = "timestamp",
-                 value_col: str   = "value",
-                 fmt: str         = "%Y-%m-%d %H:%M:%S"):
+                 value_col: str   = "value"):
         self.csv_path      = csv_path                           # location of uvsd.csv file
         self.timestamp_col = timestamp_col        # Column names in the CSV for the timestamp      
         self.value_col     = value_col           # and the numeric value—defaults match your file’s headers           
-        self.fmt           = fmt                # The format string used by datetime.strptime to parse timestamp text
-
 
     # A Generator Over CSV Rows - It reads one row at a time, which is memory-efficient for large files.
     def _rows(self):
         with open(self.csv_path, newline="") as f:
             for row in csv.DictReader(f):       # gives each row as a dict mapping column names to string values.
                 yield row
-
 
     # Finding the Most Recent Row (reads last line only)
     def _latest(self):
@@ -36,7 +31,6 @@ class DataAPI:
             if not rows:
                 return None
             return rows[-1]  # Return the last row (assumed to be the latest)
-
 
     # public getters
 
@@ -54,9 +48,5 @@ class DataAPI:
     def get_latest_timestamp(self) -> str | None:
         row = self._latest()
         if row and self.timestamp_col in row:
-            try:
-                t = datetime.strptime(row[self.timestamp_col], self.fmt)
-                return t.strftime(self.fmt)
-            except Exception:
-                pass
+            return row[self.timestamp_col]   # No datetime parsing needed
         return None
