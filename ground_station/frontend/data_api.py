@@ -50,3 +50,26 @@ class DataAPI:
         if row and self.timestamp_col in row:
             return row[self.timestamp_col]   # No datetime parsing needed
         return None
+
+
+# ImageAPI
+class ImageAPI:
+    """
+    Serves paths to Diljot's image assets via simple getters.
+    """
+    def __init__(self, image_dir: Path):
+        self.image_dir = image_dir   # Base directory containing images (e.g., /images)
+
+    # Returns full path to an image given a name (assumes PNG)
+    def get_image_path(self, image_name: str) -> str:
+        return str(self.image_dir / f"{image_name}.png")
+
+"""    # These are a few examples for specific image getters 
+    def get_satellite_status_image(self) -> str:
+        return self.get_image_path("satellite_status")
+
+    def get_orbit_path_image(self) -> str:
+        return self.get_image_path("orbit_path")
+
+    def get_health_chart_image(self) -> str:
+        return self.get_image_path("health_chart")"""
