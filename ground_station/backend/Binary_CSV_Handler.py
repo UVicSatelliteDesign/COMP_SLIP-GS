@@ -1,6 +1,5 @@
 import os
 import csv
-import pickle
 
 # ==============================================
 # GLOBAL VARIABLES
@@ -75,8 +74,8 @@ class DataHandler:
         global DATA_SAVED
         
         try:
-            # Validate payload meets minimum size requirements (8B ID + 2B seq + 3B offset + data)
-            assert len(payload) >= 13, f"Camera payload requires at least 13 bytes, got {len(payload)}"
+            # Validate payload meets minimum size requirements (1B ID + 122B data + 2B seq + 3B offset)
+            assert len(payload) >= 128, f"Camera payload requires at least 128 bytes, got {len(payload)}"
             
             # Parse the payload into its components
             identifier, seq_num, offset, image_data = self.parse_camera_payload(payload)
@@ -84,7 +83,7 @@ class DataHandler:
             # Generate filename using identifier and sequence number
             file_path = os.path.join(
                 self.image_dir, 
-                f"{identifier}_{seq_num}.pkl"  # Using sequence number from packet
+                f"{identifier}_{seq_num}.bin"  # Using .bin format
             )
 
             # Write image data to file with error handling
@@ -118,7 +117,7 @@ class DataHandler:
         
         try:
             # Validate payload contains data
-            assert len(payload) > 0, "Telemetry payload cannot be empty"
+            assert len(payload) >= 3, "Telemetry payload must be at least 3 bytes"
             
             # Parse the raw payload into a list of values
             values = self.parse_telemetry_payload(payload)
@@ -163,16 +162,17 @@ class DataHandler:
             tuple: (identifier, sequence_number, offset, image_data)
             
         Format:
-            - First 8 bytes: ASCII identifier
+            - First 1 byte: ASCII identifier
+            - Next 122 bytes: Image data
             - Next 2 bytes: Sequence number (big-endian)
             - Next 3 bytes: Offset 
-            - Remaining bytes: Image data
         """
         try:
-            identifier = payload[:8].decode('ascii', errors='replace').strip()
-            seq_num = int.from_bytes(payload[8:10], 'big')  # 2-byte sequence number
-            offset = int.from_bytes(payload[10:13], 'big')  # 3-byte offset
-            return identifier, seq_num, offset, payload[13:]
+            identifier = chr(payload[0])                        # 1-byte identifier
+            image_data = payload[1:123]                         # 122 bytes of image data
+            seq_num = int.from_bytes(payload[123:125], 'big')  # 2-byte sequence number
+            offset = int.from_bytes(payload[125:128], 'big')   # 3-byte offset
+            return identifier, seq_num, offset, image_data
             
         except Exception as e:
             print(f"Camera payload parsing failed: {e}")
@@ -187,9 +187,15 @@ class DataHandler:
             
         Returns:
             list: Cleaned values extracted from payload
+        
+        Format:
+            - ASCII-encoded CSV values
+            - Last 2 bytes: Sequence number (excluded from output)
         """
         try:
-            decoded = payload.decode('ascii', errors='replace').strip()
+            # Strip off the last 2 bytes (sequence number)
+            csv_part = payload[:-2]
+            decoded = csv_part.decode('ascii', errors='replace').strip()
             return [x.strip() for x in decoded.split(",") if x.strip()]
             
         except Exception as e:
