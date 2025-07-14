@@ -13,11 +13,13 @@ class DataHandler:
     # Class-level variable shared across all instances
     sequence_number = 0  # Tracks the sequence number of packets for ordering
 
-    def __init__(self, image_dir="images", telemetry_dir="telemetry"):
+    def __init__(self, data_type, payload_type=None, image_dir="images", telemetry_dir="telemetry"):
         """
         Initialize the data handler with storage directories
         
         Args:
+            data_type (str): Type of data this handler is responsible for ("camera" or "telemetry")
+            payload_type (int, optional): Specific payload type identifier (if applicable)
             image_dir (str): Directory to store camera images
             telemetry_dir (str): Directory to store telemetry CSV files
         """
