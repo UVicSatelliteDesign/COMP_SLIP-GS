@@ -51,6 +51,13 @@ class DataAPI:
             return row[self.timestamp_col]   # No datetime parsing needed
         return None
 
+    # Gets all values from the last row as a tuple (in column order)
+    def get_latest_row_tuple(self) -> tuple | None:
+        row = self._latest()
+        if row:
+            return tuple(row.values())  # Returns all column values as a tuple
+        return None
+
 
 # ImageAPI
 class ImageAPI:
