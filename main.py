@@ -1,7 +1,8 @@
-import sys
+import socket
 import os
-import threading
 from queue import Queue, Empty
+from PyQt6.QtCore import QObject, pyqtSignal
+import asyncio
 
 
 from ground_station.backend.transmitter import GroundStationTransmitter, PAYLOAD_TYPE_DICT
@@ -10,97 +11,115 @@ from ground_station.backend.Binary_CSV_Handler import DataHandler
 from ground_station.backend.bin_to_jpeg import BinToJPEG
 from ground_station.backend.graph_plot import ExpandingGraph
 from ground_station.backend.exceptions import MaxTransmissionReachedException, IncorrectCommandTypeException, IncorrectPayloadTypeException
-ST_IDLE = 1
-ST_LOST = 0
-ST_RETRANSMISSION = 2
+from ground_station.backend.command_queue_state import command_queue
 
-CURRENT_STATE = ST_LOST
-
-# Initializing the TX and RX queues 
-TX_queue = Queue()
-RX_queue = Queue()
-
-gs_tx = None
-gs_rx = None
-ping_ack_recieved = False
-
-# variables which keep on changing per packet.
-payload_type = None
-payload_data = None
-payload_length = None
-seq_num = None
-offset = None
-data_handler = None
-bin_to_jpeg = None
-graph_plot = None
-
-# TODO: Websocket for establishing connection to GNU.
-# TODO: Will need multithreading, concurrent tasks (recieve, send, process)
+# TODO: socket connection for establishing connection to GNU.
 # TODO: Able to change GNU configs through main file.
 # TODO: Add global vars when socket open -> FREQ, SAMPLE_RATE.
 
-def main():
-  # Start by pinging the satellite until the satellite gives us an Acknowledgement
-  while(True):
-    if CURRENT_STATE == 0:
-      # ping the satellite
-      gs_tx.ping()
-      #ACK should be added to the Receiver Queue by now
-      try:
-        data = RX_queue.get(timeout=3) # Wait for 3 seconds before raising a Empty exception, data might becoming in
-        gs_rx = ReceivedPacket(data)
-        if(gs_rx.payload_type == PAYLOAD_TYPE_DICT['Ping']):
-          ping_ack_recieved = True
-          print("Got Ping acknowledgement")
-      except Empty:
-        print("Queue empty")
-      CURRENT_STATE = ST_IDLE
-    
-    # Assuming that the connection is correctly established.
-    if CURRENT_STATE == 1:
-      # Logic for transmitting data
-      data = RX_queue.get(timeout=3)
-      # Packet has been received and parsed
-      gs_rx = ReceivedPacket(data)
-      payload_type = gs_rx.payload_type
-      payload_data = gs_rx.payload
-      payload_length = gs_rx.payload_length or 0
-      seq_num = gs_rx.sequence_number
-      offset = gs_rx.offset
+class BackendWorkerMain(QObject):
+  ping_ack_received = pyqtSignal()
+  error_occured = pyqtSignal(str)
+  packet_recieved = pyqtSignal(str)
 
-      # Init transmitter
-      gs_tx = GroundStationTransmitter(payload_type, payload_data, payload_length, seq_num, offset)
+  def __init__(self):
+    super().__init__()
+    self._running = True
+    self.max_transmission_limit = 3
+    # Init the socket connection
+    self.gnu_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    self.gnu_socket.connect(("127.0.0.1", 9999))  # will need to add actual HOST and PORT
 
-      if payload_type in [PAYLOAD_TYPE_DICT['Telemetry'],
-                          PAYLOAD_TYPE_DICT['Camera-1-End'],
-                          PAYLOAD_TYPE_DICT['Camera-1-MF'],
-                          PAYLOAD_TYPE_DICT['Camera-2-End'],
-                          PAYLOAD_TYPE_DICT['Camera-2-MF'],
-                          PAYLOAD_TYPE_DICT['Error-Peripheral'],
-                          PAYLOAD_TYPE_DICT['Error-Low-Power']]:
-        try:
-          # Send Acknowledgements.
-          gs_tx.ack()
-        except [MaxTransmissionReachedException, IncorrectPayloadTypeException] as e:
-          print(f'Error sending acknowledgements {e}')
-          
-        if payload_type in [PAYLOAD_TYPE_DICT['Telemetry'],
+    self.gs_tx = GroundStationTransmitter()
+    self.gs_rx = None
+    self.ping_ack_recieve = False
+
+    # Packet info parsed
+    self.payload_type = None
+    self.payload_data = None
+    self.payload_length = None
+    self.seq_num = None
+    self.offset = None
+
+    # Data handlers
+    self.data_handler = None
+    self.self.bin_to_jpeg = None
+    self.graph_plot = None
+
+    # Some empty variables in case we need them later
+    self.freq = None
+    self.sample_rate = None
+
+
+  def stop(self):
+    self._running = False
+
+  
+  def run(self):
+    while self._running:
+      # Check for ping acknowledgement
+      while not self.ping_ack_received:
+          try:
+            # send packet to gnu
+            ping_packet = self.gs_tx.ping()
+            self.gnu_socket.send(ping_packet)
+
+            # wait for ping
+            data = self.gnu_socket.recv(1024)
+            if not data:
+              continue
+            gs_rx = ReceivedPacket(data)
+            if gs_rx.payload_type == 0b0000:
+              self.ping_ack_received = True # Transition to idle state
+            else:
+              continue
+          except socket.timeout():
+            continue
+
+
+      data = self.gnu_socket.recv(1024)
+      if not data:
+        continue
+
+      # Send ack
+      self.gs_rx = ReceivedPacket(data)
+
+      self.gs_tx.payload_type = self.gs_rx.payload_type
+      self.gs_tx.payload_data = self.gs_rx.payload
+      self.gs_tx.payload_length = self.gs_rx.payload_length
+      self.gs_tx.sequence_number = self.gs_rx.sequence_number
+      
+      if self.gs_rx.offset:
+        self.gs_tx.offset = self.gs_rx.offset
+
+      ack_packet = self.gs_tx.ack()
+      self.gnu_socket.send(ack_packet)
+
+      # DATA HANDLING
+      self.payload_type = self.gs_rx.payload_type
+      self.payload_data = self.gs_rx.payload
+      self.payload_length = self.gs_rx.payload_length
+      self.seq_num = self.gs_rx.sequence_number
+      
+      if self.gs_rx.offset:
+        self.offset = self.gs_rx.offset
+
+      if self.payload_type in [PAYLOAD_TYPE_DICT['Telemetry'],
                             PAYLOAD_TYPE_DICT['Camera-1-End'],
                             PAYLOAD_TYPE_DICT['Camera-1-MF'],
                             PAYLOAD_TYPE_DICT['Camera-2-End'],
                             PAYLOAD_TYPE_DICT['Camera-2-MF']]:
-          # DATA HANDLING
-          # We have recieved telemetry/image data here pass it to the handler
-          data_handler = DataHandler(payload_type, payload_data)
-          
-          # process data and create .pkl and .csv files.
-          data_handler.process_packet()
+        
+        self.data_handler = DataHandler(self.payload_type)
+        self.data_handler.process_packet() # backend process, will create some directories and files
 
-          # Check if images directory exists and is not empty
-          if os.path.isdir('images') and os.listdir('images'):
-            bin_to_jpeg = BinToJPEG()
-          
-          # Stubs according to the init for graph_plot def __init__(self, x_file, y_file, x_label, y_label, title):
+        jpeg_filename = ""
+        # Check if images directory exists and is not empty
+        if os.path.isdir('images') and os.listdir('images'):
+          self.bin_to_jpeg = BinToJPEG()
+          self.bin_to_jpeg.extract_jpg_image(jpeg_filename)
+        
+        # Stubs according to the init for graph_plot def __init__(self, x_file, y_file, x_label, y_label, title):
           x_file = ""
           y_file = ""
           x_label = ""
@@ -108,18 +127,27 @@ def main():
           # Check if telemetry directory exists and is not empty
           if os.path.isdir('telemetry') and os.listdir('telemetry'):
             graph_plot = ExpandingGraph(x_file, y_file, x_label, y_label)
-      
-      # Commands prompts
-      # TX_queue will checked, if not empty that means that commands are there to be sent to the satellite.
-      try:
-        command = TX_queue.get(timeout=3)
-      except Empty:
-        print("Queue Empty")
-      
-      try:
-        gs_tx.command(command)
-      except IncorrectCommandTypeException:
-        print("Incorrect command: cannot transmit")
 
-    # Implement backend worker.
+      if not command_queue.empty():
+        command = command_queue.get()
+        command_packet = self.gs_tx.command(command)
+        # send command packet
+        self.gnu_socket.send(command_packet)
+        # Check for acknowledgement recieved and retransmit data if not recieved.
+        while True:
+          self.gnu_socket.settimeout(5)
+          if self.max_transmission_limit == 3:
+            self.ping_ack_received = False
+            break
+          try:
+            data = self.gnu_socket.recv(1024)
+            if not data:
+              continue
+            else:
+              self.max_transmission_limit = 0
+          except self.gnu_socket.timeout:
+            self.max_transmission_limit+=1
+            continue
+      
+      self.gnu_socket.settimeout(0) # Set the socket timeout to zero again
     

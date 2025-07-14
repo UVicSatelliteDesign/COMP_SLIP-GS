@@ -4,6 +4,9 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QComboBox, QPushButton, QLabel 
 from utils import is_valid_command, get_binary_from_dict, add_to_queue, show_acknowledgment
 
+from ground_station.backend.command_queue_state import command_queue
+
+
 class CommandPrompt(QWidget):
     def __init__(self):
         super().__init__()
@@ -42,7 +45,10 @@ class CommandPrompt(QWidget):
         if is_valid_command(command):
             # Convert and enqueue
             bits = get_binary_from_dict(command)
-            add_to_queue(bits)
+            # add_to_queue(bits)
+            command_queue.put(bits)
+            from ground_station.backend.command_queue_state import transfer_acknowledgment
+            transfer_acknowledgment = True
             show_acknowledgment()
             self.result_label.setText("Command processed and moved to queue.")
         else:

@@ -98,8 +98,7 @@ class GroundStationTransmitter():
         packet.append(PAYLOAD_TYPE_DICT['Ping'])
 
         ping_packet = self.construct_packet(packet)
-
-        self.transmit_func(ping_packet)
+        return ping_packet
 
     # Check the commands queue in the main file for any incoming commands, if yes then send that command data type.
     def command(self, command):
@@ -112,8 +111,7 @@ class GroundStationTransmitter():
         packet.append(PAYLOAD_TYPE_DICT[command])
 
         command_packet = self.construct_packet(packet)
-
-        self.transmit_func(command_packet)
+        return command_packet
 
     def ack(self):
         # TODO construct an ACK packet
@@ -124,19 +122,19 @@ class GroundStationTransmitter():
         packet.append(self.payload_type)
 
         ack_packet = self.construct_packet(packet)
-        self.transmit_func(ack_packet)
+        return ack_packet
 
-    def transmit_func(self, data: bytearray):
-        packet_tx_attempts = 0
-        while True:
-            if packet_tx_attempts <= MAX_TRANSMISSION_LIMIT:
-                try:
-                    print(f'Packet {data} transmitted')
-                    # TODO Transmit packet to GNU radio
-                    break
-                except Exception as e:  #TODO Communication broken re-establish connection and transmit packets again
-                    print(f"Transmission failed: {e}")
-                    packet_tx_attempts+=1
-                    continue
-            else:
-                raise MaxTransmissionReachedException(f'Max tranmission limit reached: {packet_tx_attempts}')
+    # def transmit_func(self, data: bytearray):
+    #     packet_tx_attempts = 0
+    #     while True:
+    #         if packet_tx_attempts <= MAX_TRANSMISSION_LIMIT:
+    #             try:
+    #                 print(f'Packet {data} transmitted')
+    #                 # TODO Transmit packet to GNU radio
+    #                 break
+    #             except Exception as e:  #TODO Communication broken re-establish connection and transmit packets again
+    #                 print(f"Transmission failed: {e}")
+    #                 packet_tx_attempts+=1
+    #                 continue
+    #         else:
+    #             raise MaxTransmissionReachedException(f'Max tranmission limit reached: {packet_tx_attempts}')
