@@ -110,7 +110,7 @@ class BackendWorkerMain(QObject):
                             PAYLOAD_TYPE_DICT['Camera-2-End'],
                             PAYLOAD_TYPE_DICT['Camera-2-MF']]:
         
-        self.data_handler = DataHandler(self.payload_type)
+        self.data_handler = DataHandler(self.payload_type, self.payload_data)
         self.data_handler.process_packet() # backend process, will create some directories and files
 
         jpeg_filename = ""
