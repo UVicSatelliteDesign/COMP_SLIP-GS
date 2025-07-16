@@ -17,3 +17,5 @@ RUN pip install --upgrade pip && \
 
 # EXPOSE 5000
 CMD ["python", "main_window.py"]  # adjust to your actual app entry point
+
+# convert current pipeline to multistage to reduce the image size
