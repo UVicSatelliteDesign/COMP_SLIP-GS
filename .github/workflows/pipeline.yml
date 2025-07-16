@@ -2,7 +2,7 @@ name: Ground Station Automation Pipeline
 
 on:
   push:
-    branches: [ dev,  pipeline-image-building ] # need to remove the test branches: initial-pipeline
+    branches: [ dev,  pipeline-image-building ] # need to remove the test branches: pipeline-image-building
   # pull_request:
   #   branches: [ dev ]
 
