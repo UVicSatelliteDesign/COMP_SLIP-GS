@@ -21,23 +21,6 @@ from ground_station.frontend.graphs_display.graph_wrapper_class import GraphWrap
 
 DEFAULT_MAX_NO_OF_GRAPHS = 6 # Default upper-limit for no. of graphs used in testing
 
-# Hook for optional user input of custom upper-limit for the no. of graphs to test with
-def pytest_addoption(parser: pytest.Parser) -> None:
-    """
-    `pytest` hook to customize upper-limit of no. of graphs to be used in testing.
-    Default upper limit is stored in `DEFAULT_MAX_NO_OF_GRAPHS`.
-
-    :param parser: `pytest` command line parser object.
-    """
-
-    parser.addoption(
-        "--max_graphs",
-        action = "store",
-        default = DEFAULT_MAX_NO_OF_GRAPHS,
-        type = int,
-        help = "Max graph count for parametrize",
-    )
-
 
 def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
     """
