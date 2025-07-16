@@ -98,7 +98,6 @@ def reset_transfer_acknowledgement():
     transfer_acknowledgment = False
 
 
-@pytest.fixture
 def generate_invalid_commands(n: int) -> list[str]:
     """
     Generates `n` invalid commands containing letters, numbers, special characters and escape sequences.
@@ -207,7 +206,6 @@ class TestCommandPrompt:
                                                       app: QApplication,
                                                       widget: CommandPrompt,
                                                       monkeypatch: pytest.MonkeyPatch,
-                                                      generate_invalid_commands: list[str],
                                                       reset_queue,
                                                       reset_transfer_acknowledgement,
                                                       count: int):
@@ -254,7 +252,6 @@ class TestCommandPrompt:
                                                   app: QApplication,
                                                   widget: CommandPrompt,
                                                   monkeypatch: pytest.MonkeyPatch,
-                                                  generate_invalid_commands: list[str],
                                                   reset_queue,
                                                   reset_transfer_acknowledgement,
                                                   count: int):
