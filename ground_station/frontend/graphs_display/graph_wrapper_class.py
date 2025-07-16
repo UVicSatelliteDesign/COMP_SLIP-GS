@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 
-from backend.graph_plot import ExpandingGraph
+from ground_station.backend.graph_plot import ExpandingGraph
 
 
 class GraphWrapperClass(QWidget):
