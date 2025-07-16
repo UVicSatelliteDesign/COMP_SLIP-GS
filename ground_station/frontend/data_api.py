@@ -1,6 +1,7 @@
 # data_api.py
 
 import csv                      # for reading csv files
+import os                       # needed for ImageAPI class
 from pathlib import Path  
 
 # Path: From pathlib, makes file-path manipulation (and cross-platform paths) easier.
@@ -67,9 +68,18 @@ class ImageAPI:
     def __init__(self, image_dir: Path):
         self.image_dir = image_dir   # Base directory containing images (e.g., /images)
 
-    # Returns full path to an image given a name (assumes PNG)
-    def get_image_path(self, image_name: str) -> str:
-        return str(self.image_dir / f"{image_name}.jpeg")
+    # Returns the most recently modified JPEG file in the image directory
+    def get_latest_image_path(self) -> str | None:
+        jpg_files = list(self.image_dir.glob("*.jpg"))  # not sure whether to type jpeg or jpg here
+        if not jpg_files:
+            return None
+        latest_file = max(jpg_files, key=os.path.getmtime)
+        # Im using getmtime to find the most recently modified .jpg file,
+        # not sure if filenames are guaranteed to imply the creation order so sticking to this method for now.
+        # If there is an equivalent to reading the last line in a CSV for this such as filename storing timestamp please let me know.
+
+        return str(latest_file)
+
 
 """    # These are a few examples for specific image getters 
     def get_satellite_status_image(self) -> str:
@@ -80,3 +90,16 @@ class ImageAPI:
 
     def get_health_chart_image(self) -> str:
         return self.get_image_path("health_chart")"""
+
+# quick local test for ImageAPI
+"""if __name__ == "__main__":
+    from pathlib import Path
+
+    image_api = ImageAPI(Path("ground_station/backend/Images"))
+    latest_image = image_api.get_latest_image_path()
+
+    if latest_image:
+        print(f"Latest image path: {latest_image}")
+    else:
+        print("No JPEG images found.")
+"""
