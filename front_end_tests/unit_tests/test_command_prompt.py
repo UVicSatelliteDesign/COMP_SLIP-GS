@@ -68,7 +68,7 @@ def update_transfer_acknowledgement():
     utils.transfer_acknowledgment = False
 
 @pytest.fixture
-def reset_transfer_acknowledgement(autouse=True):
+def reset_transfer_acknowledgement():
     """
     Resets `transfer_acknowledgment` to `False`.
     """
