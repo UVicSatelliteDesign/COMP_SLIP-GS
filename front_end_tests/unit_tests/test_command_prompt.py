@@ -12,8 +12,8 @@ from PyQt6.QtWidgets import QApplication, QLabel, QPushButton, QComboBox
 
 # Widgets, functions and variables to test
 from ground_station.frontend.command_prompt import CommandPrompt
-from ground_station.frontend.utils import add_to_queue, get_from_queue, valid_commands, queue, \
-    transfer_acknowledgment
+from ground_station.frontend.utils import add_to_queue, get_from_queue, valid_commands, queue
+from ground_station.frontend import utils
 
 DEFAULT_MAX_NO_OF_COMMANDS = 7 # Default upper-limit for no. of commands used in testing
 
@@ -95,7 +95,7 @@ def reset_transfer_acknowledgement():
     Resets `transfer_acknowledgment` to `False`.
     """
 
-    transfer_acknowledgment = False
+    utils.transfer_acknowledgment = False
 
 
 def generate_invalid_commands(n: int) -> list[str]:
@@ -182,13 +182,13 @@ class TestCommandPrompt:
             commands_submitted.append(dropdown.itemText(i).strip())
 
             # Checks if transfer is acknowledged before submission
-            assert transfer_acknowledgment == False, \
+            assert utils.transfer_acknowledgment == False, \
                 "Transfer to queue should not have been acknowledged yet"
 
             qtbot.mouseClick(widget.submit_button, Qt.MouseButton.LeftButton)
             
             # Checks if submit was acknowledged
-            assert transfer_acknowledgment == True, "Transfer to queue should have been acknowledged"
+            assert utils.transfer_acknowledgment == True, "Transfer to queue should have been acknowledged"
         
         # Checks if all the commands were added to queue
         assert queue.qsize() == dropdown.count(), \
@@ -241,7 +241,7 @@ class TestCommandPrompt:
                 widget.process_command()
 
                 assert queue.empty(), "Command should not have been uploaded to queue"
-                assert transfer_acknowledgment == False, "Transfer should not have been acknowledged"
+                assert utils.transfer_acknowledgment == False, "Transfer should not have been acknowledged"
                 assert widget.result_label == "Invalid command.", \
                     f"Expected \"Invalid command.\" got \"{widget.result_label}\""
             else:
