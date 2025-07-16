@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from backend.pass_app_layer import (
+from ground_station.backend.pass_app_layer import (
     handle_ping,
     handle_nominal,
     handle_low_power,

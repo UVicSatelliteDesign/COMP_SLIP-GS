@@ -2,7 +2,7 @@
 
 #imports first
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QComboBox, QPushButton, QLabel 
-from utils import is_valid_command, get_binary_from_dict, add_to_queue, show_acknowledgment
+from .utils import is_valid_command, get_binary_from_dict, add_to_queue, show_acknowledgment
 
 class CommandPrompt(QWidget):
     def __init__(self):
