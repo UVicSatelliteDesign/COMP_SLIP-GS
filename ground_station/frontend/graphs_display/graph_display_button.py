@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import QPushButton, QWidget, QHBoxLayout
 
-from graph_display_area import GraphDisplayArea
+from .graph_display_area import GraphDisplayArea
 
 
 class GraphDisplayButton(QWidget):
