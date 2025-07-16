@@ -31,7 +31,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     """
 
     parser.addoption(
-        "--max-graphs",
+        "--max_graphs",
         action = "store",
         default = DEFAULT_MAX_NO_OF_GRAPHS,
         type = int,
@@ -44,17 +44,17 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
     `pytest` hook for dynamic parametrization of test functions.
 
     If a function uses a `count` fixture, this hook parametrizes it with a range from 0 to the value
-    obtained from `--max-graphs` on the command line.
+    obtained from `--max_graphs` on the command line.
 
     :param metafunc: `Metafunc` object for the test function.
     """
 
     if "count" in metafunc.fixturenames:
-        max_graphs = metafunc.config.getoption("max-graphs")
+        max_graphs = metafunc.config.getoption("max_graphs")
 
         # Error handling of user-input
         if max_graphs <= 0 or not isinstance(max_graphs, int):
-            print(f"Invalid input for --max-graphs. Using default value of {DEFAULT_MAX_NO_OF_GRAPHS}")
+            print(f"Invalid input for --max_graphs. Using default value of {DEFAULT_MAX_NO_OF_GRAPHS}")
             max_graphs = DEFAULT_MAX_NO_OF_GRAPHS
 
         metafunc.parametrize("count", range(0, max_graphs+1))
@@ -76,15 +76,6 @@ class DummyGraph:
 
 
 # Fixtures
-@pytest.fixture(scope="session")
-def app() -> QApplication:
-    """
-    Provides a single `QApplication` instance for all tests.
-    """
-
-    return QApplication(sys.argv)
-
-
 @pytest.fixture(autouse=True)
 def disable_background_threads(monkeypatch: pytest.MonkeyPatch):
     """
@@ -95,7 +86,7 @@ def disable_background_threads(monkeypatch: pytest.MonkeyPatch):
 
 
 @pytest.fixture
-def widget(app: QApplication,
+def widget(qapp: QApplication,
            qtbot: QtBot,
            dummy_graphs: Callable[[int], list[DummyGraph]]) -> GraphDisplayLayout:
     """
@@ -126,7 +117,7 @@ def dummy_graphs() -> Callable[[int], list[DummyGraph]]:
 # Tests for GraphDisplayLayout in graph_display_layout.py
 class TestGraphDisplayLayout:
     def test_layout_initialization(self,
-                                   app: QApplication,
+                                   qapp: QApplication,
                                    qtbot: QtBot,
                                    dummy_graphs: Callable[[int], list[DummyGraph]],
                                    count: int):
@@ -139,7 +130,7 @@ class TestGraphDisplayLayout:
         - If the `QStackedLayout` has the correct number of graphs.
         - `DefaultDisplay` is the default `QWidget` in the `QStackedLayout`
 
-        :param app: Fixture providing `Qt` application context.
+        :param qapp: Fixture providing `Qt` application context.
         :param qtbot: Fixture for widget interaction.
         :param dummy_graphs: Factory which returns `count` `DummyGraph` instances.
         :param count: No. of graphs to test with.
@@ -184,7 +175,7 @@ class TestGraphDisplayLayout:
 
 
     def test_buttons_functionality(self,
-                                  app: QApplication,
+                                  qapp: QApplication,
                                   qtbot: QtBot,
                                   dummy_graphs: Callable[[int], list[DummyGraph]],
                                   count: int):
@@ -195,7 +186,7 @@ class TestGraphDisplayLayout:
         - If each `QPushButton`'s label matched the title of the graph its linked to.
         - If clicking each button switches the display to the correct graph.
 
-        :param app: Fixture providing `Qt` application context.
+        :param qapp: Fixture providing `Qt` application context.
         :param qtbot: Fixture for widget interaction.
         :param dummy_graphs: Factory which returns `count` `DummyGraph` instances.
         :param count: No. of graphs to test with.
@@ -211,10 +202,12 @@ class TestGraphDisplayLayout:
         # Clicks each button using qtbot to test functionality
         for index, button in enumerate(buttons, start=1):
             # Checks if button text matches graph title
-            expected_text = graphs[index-1].get_title()
-            assert button.text().replace("\n", " ") == expected_text, \
-                f"Button {index}: Expected \"{expected_text}\", got \"{button.text().replace("\n", " ")}\""
-
+            expected_text = graphs[index - 1].get_title()
+            button_text_cleaned = button.text().replace("\n", " ")
+    
+            assert button_text_cleaned == expected_text, \
+                f'Button {index}: Expected "{expected_text}", got "{button_text_cleaned}"'
+            
             # Checks if pressing button displays correct graph
             qtbot.mouseClick(button, Qt.MouseButton.LeftButton)
             assert area.stackedLayout.currentIndex() == index, \
@@ -222,7 +215,7 @@ class TestGraphDisplayLayout:
     
 
     def test_stop_threads_shuts_down_and_replaces_executor(self,
-                                                           app: QApplication,
+                                                           qapp: QApplication,
                                                            widget: GraphDisplayLayout,
                                                            monkeypatch: pytest.MonkeyPatch):
         """
@@ -232,7 +225,7 @@ class TestGraphDisplayLayout:
         - If `shutdown()` is called on existing `ThreadPoolExecutor`.
         - If `background_threads` is replaced with a new `ThreadPoolExecutor` instance after `shutdown()`.
 
-        :param app: Fixture providing `Qt` application context.
+        :param qapp: Fixture providing `Qt` application context.
         :param widget: Fixture providing an instance of `GraphDisplayLayout`.
         :param monkeypatch: Fixture used to patch `executor.shutdown()`.
         """
@@ -261,14 +254,14 @@ class TestGraphDisplayLayout:
     
 
     def test_stop_threads_exception_handling(self,
-                                             app: QApplication,
+                                             qapp: QApplication,
                                              widget: GraphDisplayLayout,
                                              monkeypatch: pytest.MonkeyPatch,
                                              capsys: CaptureFixture[str]):
         """
         Tests if forcing `shutdown()` to raise exception prints the exception message.
 
-        :param app: Fixture providing `Qt` application context.
+        :param qapp: Fixture providing `Qt` application context.
         :param widget: Fixture providing an instance of `GraphDisplayLayout`.
         :param monkeypatch: Fixture used to patch `executor.shutdown()`.
         :param capsys: Fixture for capturing `stdout`/`stderr` output.
@@ -293,13 +286,13 @@ class TestGraphDisplayLayout:
 
 
     def test_close_event_calls_stop_threads(self,
-                                            app: QApplication,
+                                            qapp: QApplication,
                                             widget: GraphDisplayLayout,
                                             monkeypatch: pytest.MonkeyPatch):
         """
         Tests if `closeEvent()` calls `stop_threads()` and accepts the event.
 
-        :param app: Fixture providing `Qt` application context.
+        :param qapp: Fixture providing `Qt` application context.
         :param widget: Fixture providing an instance of `GraphDisplayLayout` for testing.
         :param monkeypatch: Fixture used to patch `stop_threads()`.
         """

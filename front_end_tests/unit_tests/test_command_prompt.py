@@ -27,7 +27,7 @@ def pytest_addoption(parser: pytest.Parser):
     """
 
     parser.addoption(
-        "--max-commands",
+        "--max_commands",
         action = "store",
         default = DEFAULT_MAX_NO_OF_COMMANDS,
         type = int,
@@ -40,34 +40,26 @@ def pytest_generate_tests(metafunc: pytest.Metafunc):
     `pytest` hook for dynamic parametrization of test functions.
 
     If a function uses a `count` fixture, this hook parametrizes it with a range from 1 to the value
-    obtained from `--max-commands` on the command line.
+    obtained from `--max_commands` on the command line.
 
     :param metafunc: `Metafunc` object for the test function.
     """
 
     if "count" in metafunc.fixturenames:
-        max_commands = metafunc.config.getoption("max-commands")
+        max_commands = metafunc.config.getoption("max_commands")
 
         # Error handling of user-input
         if max_commands <= 0 or not isinstance(max_commands, int):
-            print(f"Invalid input for --max-commands. Using default value of {DEFAULT_MAX_NO_OF_COMMANDS}")
+            print(f"Invalid input for --max_commands. Using default value of {DEFAULT_MAX_NO_OF_COMMANDS}")
             max_commands = DEFAULT_MAX_NO_OF_COMMANDS
         
         metafunc.parametrize("count", range(1, max_commands+1))
 
 
 # Fixtures
-@pytest.fixture(scope="session")
-def app() -> QApplication:
-    """
-    Provides a single `QApplication` instance for all tests.
-    """
-
-    return QApplication(sys.argv)
-
 
 @pytest.fixture
-def widget(app: QApplication,
+def widget(qapp: QApplication,
            qtbot: QtBot) -> CommandPrompt:
     """
     Provides a `CommandPrompt` instance and registers it with `qtbot` for proper event-loop
@@ -113,7 +105,7 @@ def generate_invalid_commands(n: int) -> list[str]:
 # Tests for CommandPrompt in command_prompt.py
 class TestCommandPrompt:
     def test_layout_initialization(self,
-                                   app: QApplication,
+                                   qapp: QApplication,
                                    qtbot: QtBot):
         """
         Tests if the GUI of `CommandPrompt` initializes correctly.
@@ -123,7 +115,7 @@ class TestCommandPrompt:
         - The no. of commands in the drop-down are same as the no. of valid commands.
         - The commands in the drop-down are identical to the valid commands.
 
-        :param app: Fixture providing `Qt` application context.
+        :param qapp: Fixture providing `Qt` application context.
         :param qtbot: Fixture for widget interaction.
         """
         
@@ -151,14 +143,14 @@ class TestCommandPrompt:
 
 
     def test_drop_down_and_submit_button_functionality(self,
-                                                       app: QApplication,
+                                                       qapp: QApplication,
                                                        qtbot: QtBot,
                                                        reset_queue,
                                                        reset_transfer_acknowledgement):
         """
         Tests if all commands in the drop-down menu are processed correctly.
 
-        :param app: Fixture providing `Qt` application context.
+        :param qapp: Fixture providing `Qt` application context.
         :param qtbot: Fixture for widget interaction.
         :param reset_queue: Fixture to reset `queue` in `utils.py` after testing.
         :param reset_transfer_acknowledgement: Fixture to reset `transfer_acknowledgement` in `utils.py` 
@@ -203,7 +195,7 @@ class TestCommandPrompt:
 
 
     def test_process_command_invalid_command_handling(self,
-                                                      app: QApplication,
+                                                      qapp: QApplication,
                                                       widget: CommandPrompt,
                                                       monkeypatch: pytest.MonkeyPatch,
                                                       reset_queue,
@@ -212,7 +204,7 @@ class TestCommandPrompt:
         """
         Tests if `process_command()` processes invalid commands correctly.
 
-        :param app: Fixture providing `Qt` application context.
+        :param qapp: Fixture providing `Qt` application context.
         :param widget: Fixture providing an instance of `CommandPrompt`.
         :param monkeypatch: Fixture to patch `currentText()` of `widget.command_dropdown`.
         :param reset_queue: Fixture to reset `queue` in `utils.py` after testing.
@@ -249,7 +241,7 @@ class TestCommandPrompt:
     
 
     def test_process_command_mixed_input_handling(self,
-                                                  app: QApplication,
+                                                  qapp: QApplication,
                                                   widget: CommandPrompt,
                                                   monkeypatch: pytest.MonkeyPatch,
                                                   reset_queue,
@@ -258,7 +250,7 @@ class TestCommandPrompt:
         """
         Tests if `process_command()` processes a mix of valid and invalid commands correctly.
 
-        :param app: Fixture providing `Qt` application context.
+        :param qapp: Fixture providing `Qt` application context.
         :param widget: Fixture providing an instance of `CommandPrompt`.
         :param monkeypatch: Fixture to patch `currentText()` of `widget.command_dropdown`.
         :param reset_queue: Fixture to reset `queue` in `utils.py` after testing.
