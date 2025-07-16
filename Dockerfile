@@ -16,6 +16,6 @@ RUN pip install --upgrade pip && \
 
 
 # EXPOSE 5000
-CMD ["python", "main_window.py"]  # adjust to your actual app entry point
+CMD ["python", "./ground_station/frontend/main_window.py"]  # create bash script to initiate the application
 
 # convert current pipeline to multistage to reduce the image size
