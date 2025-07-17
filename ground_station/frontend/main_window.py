@@ -18,436 +18,355 @@ from ground_station.backend.Binary_CSV_Handler import DataHandler, DATA_SAVED, T
 from main import BackendWorkerMain
 
 
-class BackendWorker(QObject):
-    """
-    Backend worker that runs in a separate thread to handle satellite data processing.
-    """
-    # Signals to communicate with main thread
-    data_received = pyqtSignal(str)  # Signal when new data is received
-    telemetry_updated = pyqtSignal(dict)  # Signal when telemetry data is updated
-    image_received = pyqtSignal(str)  # Signal when new image is received
-    status_updated = pyqtSignal(str)  # Signal for status updates
-    error_occurred = pyqtSignal(str)  # Signal for error messages
-
+class BackendThread(QThread):
+    """QThread wrapper for backend operations"""
+    
+    # Signals for communication with GUI
+    packet_processed = pyqtSignal(str)
+    image_updated = pyqtSignal(str)
+    telemetry_updated = pyqtSignal()
+    error_occurred = pyqtSignal(str)
+    
     def __init__(self):
         super().__init__()
-        self.data_handler = DataHandler()
-        self.is_running = False
-        self.packet_count = 0
-
-    @pyqtSlot()
-    def start_processing(self):
-        """Start the backend data processing."""
-        self.is_running = True
-        self.status_updated.emit("Backend processing started")
-
-    @pyqtSlot()
-    def stop_processing(self):
-        """Stop the backend data processing."""
-        self.is_running = False
-        self.status_updated.emit("Backend processing stopped")
-
-    @pyqtSlot(bytes)
-    def process_satellite_data(self, packet_data):
-        """
-        Process incoming satellite data packets.
+        self.backend_worker = BackendWorkerMain()
+        self.backend_worker.moveToThread(self)
         
-        Args:
-            packet_data (bytes): Raw packet data from satellite
-        """
-        try:
-            if not self.is_running:
-                return
-
-            # Process packet using the existing receiver
-            received_packet = ReceivedPacket(packet_data)
-            
-            if received_packet.payload_type is not None:
-                self.packet_count += 1
-                
-                # Process through data handler
-                self.data_handler.process_packet(packet_data)
-                
-                # Emit appropriate signals based on packet type
-                if received_packet.payload_type == 0b0011:  # Telemetry
-                    self.telemetry_updated.emit({
-                        'packet_count': self.packet_count,
-                        'sequence_number': received_packet.sequence_number,
-                        'payload_type': 'Telemetry'
-                    })
-                elif received_packet.payload_type in [0b0100, 0b0101, 0b0110, 0b0111]:  # Camera
-                    self.image_received.emit(f"Camera data received - Seq: {received_packet.sequence_number}")
-                
-                self.data_received.emit(f"Packet {self.packet_count} processed successfully")
-            else:
-                self.error_occurred.emit("Invalid packet format received")
-
-        except Exception as e:
-            self.error_occurred.emit(f"Error processing packet: {str(e)}")
-
-    @pyqtSlot(str)
-    def simulate_data_reception(self, data_type):
-        """
-        Simulate data reception for testing purposes.
+        # Connect backend signals to thread signals
+        self.backend_worker.packet_recieved.connect(self.packet_processed)
+        self.backend_worker.error_occured.connect(self.error_occurred)
         
-        Args:
-            data_type (str): Type of data to simulate ('telemetry' or 'camera')
-        """
-        try:
-            if data_type == 'telemetry':
-                # Simulate telemetry packet
-                test_packet = b"\x00\x00\x00\x10" + b"temp:25.5,alt:1500,lat:49.2827,lon:-123.1207"
-                self.process_satellite_data(test_packet)
-            elif data_type == 'camera':
-                # Simulate camera packet
-                test_packet = b"\x00\x00\x00\x11" + b"CAM001\x00\x00" + b"fake_image_data" + b"\x00\x00\x00"
-                self.process_satellite_data(test_packet)
-        except Exception as e:
-            self.error_occurred.emit(f"Simulation error: {str(e)}")
+    def run(self):
+        """Run the backend worker"""
+        self.backend_worker.run()
+    
+    def stop_backend(self):
+        """Stop the backend worker"""
+        self.backend_worker.stop()
 
 
-class MainWindow(QMainWindow):
-    """
-    Main application window for the ground station control software.
-    """
-    # Signals to communicate with backend thread
-    start_backend = pyqtSignal()
-    stop_backend = pyqtSignal()
-    process_data = pyqtSignal(bytes)
-    simulate_data = pyqtSignal(str)
-
+class GroundStationMainWindow(QMainWindow):
+    """Main application window for Ground Station"""
+    
     def __init__(self):
         super().__init__()
-        self.backend_worker = None
-        self.backend_thread = None
-        self.graphs_layout = None
         
+        # Window setup
+        self.setWindowTitle("Ground Station - Satellite Communication System")
+        self.setGeometry(100, 100, 1600, 1000)
+        
+        # Initialize APIs
+        self.data_api = DataAPI(Path("telemetry/telemetry.csv"))
+        self.image_api = ImageAPI(Path("images"))
+        
+        # Initialize backend thread
+        self.backend_thread = BackendThread()
+        self.setup_backend_connections()
+        
+        # Create expanding graphs (13 graphs as requested)
+        self.expanding_graphs = self.create_expanding_graphs()
+        
+        # Initialize UI components
         self.init_ui()
-        self.init_backend_thread()
-        self.setup_status_timer()
-
-    def init_ui(self):
-        """Initialize the user interface."""
-        self.setWindowTitle("Ground Station Control - Satellite Communication")
-        self.setGeometry(100, 100, 1400, 900)
         
-        # Create central widget and main layout
+        # Setup auto-update timers
+        self.setup_timers()
+        
+        # Start backend thread
+        self.backend_thread.start()
+        
+    def create_expanding_graphs(self):
+        """Create 13 expanding graphs for different telemetry data"""
+        graphs = []
+        
+        # Define graph configurations
+        graph_configs = [
+            ("Field_0", "Field_1", "Time", "Temperature", "Temperature vs Time"),
+            ("Field_0", "Field_2", "Time", "Pressure", "Pressure vs Time"),
+            ("Field_0", "Field_3", "Time", "Altitude", "Altitude vs Time"),
+            ("Field_0", "Field_4", "Time", "Gyroscope X", "Gyroscope X vs Time"),
+            ("Field_0", "Field_5", "Time", "Gyroscope Y", "Gyroscope Y vs Time"),
+            ("Field_0", "Field_6", "Time", "Gyroscope Z", "Gyroscope Z vs Time"),
+            ("Field_0", "Field_7", "Time", "Accelerometer X", "Accelerometer X vs Time"),
+            ("Field_0", "Field_8", "Time", "Accelerometer Y", "Accelerometer Y vs Time"),
+            ("Field_0", "Field_9", "Time", "Accelerometer Z", "Accelerometer Z vs Time"),
+            ("Field_0", "Field_10", "Time", "Battery Voltage", "Battery Voltage vs Time"),
+            ("Field_0", "Field_11", "Time", "Solar Panel Current", "Solar Panel Current vs Time"),
+            ("Field_1", "Field_2", "Temperature", "Pressure", "Pressure vs Temperature"),
+            ("Field_3", "Field_10", "Altitude", "Battery Voltage", "Battery vs Altitude")
+        ]
+        
+        # Create graphs
+        for x_field, y_field, x_label, y_label, title in graph_configs:
+            graph = ExpandingGraph(x_field, y_field, x_label, y_label, title)
+            graphs.append(graph)
+            
+        return graphs
+    
+    def init_ui(self):
+        """Initialize the user interface"""
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
-        main_layout = QHBoxLayout(central_widget)
-
-        # Create left panel for controls and status
-        left_panel = self.create_control_panel()
-        main_layout.addWidget(left_panel, 1)  # 1/4 of the width
-
-        # Create right panel for graphs
-        right_panel = self.create_graphs_panel()
-        main_layout.addWidget(right_panel, 3)  # 3/4 of the width
-
-        # Create status bar
-        self.status_bar = QStatusBar()
-        self.setStatusBar(self.status_bar)
-        self.status_bar.showMessage("Ground Station Ready")
-
-    def create_control_panel(self):
-        """Create the left control panel with status information and controls."""
-        panel = QWidget()
-        layout = QVBoxLayout(panel)
-
+        
+        # Main layout
+        main_layout = QHBoxLayout()
+        
+        # Left panel - Image display
+        left_panel = self.create_left_panel()
+        main_layout.addWidget(left_panel)
+        
+        # Right panel - Command prompt and graphs
+        right_panel = self.create_right_panel()
+        main_layout.addWidget(right_panel)
+        
+        central_widget.setLayout(main_layout)
+        
+    def create_left_panel(self):
+        """Create the left panel with image display and telemetry data"""
+        left_frame = QFrame()
+        left_frame.setFrameStyle(QFrame.Shape.Box)
+        left_frame.setFixedWidth(600)
+        
+        layout = QVBoxLayout()
+        
         # Title
-        title = QLabel("Ground Station Control")
-        title.setFont(QFont("Arial", 16, QFont.Weight.Bold))
-        layout.addWidget(title)
-
-        # Connection Status Group
-        conn_group = QGroupBox("Connection Status")
-        conn_layout = QGridLayout(conn_group)
+        title_label = QLabel("Latest Satellite Image")
+        title_label.setFont(QFont("Arial", 16, QFont.Weight.Bold))
+        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title_label)
         
-        self.connection_status = QLabel("🔴 Disconnected")
-        self.packets_received = QLabel("Packets: 0")
-        self.last_contact = QLabel("Last Contact: Never")
+        # Image display
+        self.image_label = QLabel()
+        self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.image_label.setStyleSheet("border: 2px solid gray; background-color: lightgray;")
+        self.image_label.setFixedSize(580, 400)
+        self.image_label.setText("No image available")
+        layout.addWidget(self.image_label)
         
-        conn_layout.addWidget(QLabel("Status:"), 0, 0)
-        conn_layout.addWidget(self.connection_status, 0, 1)
-        conn_layout.addWidget(self.packets_received, 1, 0, 1, 2)
-        conn_layout.addWidget(self.last_contact, 2, 0, 1, 2)
+        # Telemetry data table
+        telemetry_frame = self.create_telemetry_display()
+        layout.addWidget(telemetry_frame)
         
-        layout.addWidget(conn_group)
-
-        # Telemetry Status Group
-        telem_group = QGroupBox("Telemetry Status")
-        telem_layout = QGridLayout(telem_group)
+        left_frame.setLayout(layout)
+        return left_frame
+    
+    def create_telemetry_display(self):
+        """Create telemetry data display with 13 placeholders"""
+        frame = QFrame()
+        frame.setFrameStyle(QFrame.Shape.Box)
         
-        self.telemetry_status = QLabel("No Data")
-        self.data_saved_status = QLabel("❌ Not Saved")
+        layout = QVBoxLayout()
         
-        telem_layout.addWidget(QLabel("Status:"), 0, 0)
-        telem_layout.addWidget(self.telemetry_status, 0, 1)
-        telem_layout.addWidget(QLabel("Data Saved:"), 1, 0)
-        telem_layout.addWidget(self.data_saved_status, 1, 1)
+        # Title
+        title_label = QLabel("Real-time Telemetry Data")
+        title_label.setFont(QFont("Arial", 14, QFont.Weight.Bold))
+        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title_label)
         
-        layout.addWidget(telem_group)
-
-        # Control Buttons Group
-        control_group = QGroupBox("Controls")
-        control_layout = QVBoxLayout(control_group)
+        # Scroll area for telemetry data
+        scroll_area = QScrollArea()
+        scroll_widget = QWidget()
+        scroll_layout = QVBoxLayout()
         
-        self.start_btn = QPushButton("Start Backend")
-        self.start_btn.clicked.connect(self.start_backend_processing)
+        # Create 13 data placeholders
+        self.telemetry_labels = {}
+        telemetry_fields = [
+            "Time", "Temperature", "Pressure", "Altitude", "Gyroscope X",
+            "Gyroscope Y", "Gyroscope Z", "Accelerometer X", "Accelerometer Y",
+            "Accelerometer Z", "Battery Voltage", "Solar Panel Current", "Signal Strength"
+        ]
         
-        self.stop_btn = QPushButton("Stop Backend")
-        self.stop_btn.clicked.connect(self.stop_backend_processing)
-        self.stop_btn.setEnabled(False)
+        for i, field in enumerate(telemetry_fields):
+            data_layout = QHBoxLayout()
+            
+            name_label = QLabel(f"{field}:")
+            name_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+            name_label.setFixedWidth(150)
+            
+            value_label = QLabel("-- N/A --")
+            value_label.setStyleSheet("color: blue; font-weight: bold;")
+            
+            data_layout.addWidget(name_label)
+            data_layout.addWidget(value_label)
+            data_layout.addStretch()
+            
+            scroll_layout.addLayout(data_layout)
+            self.telemetry_labels[f"Field_{i}"] = value_label
         
-        self.simulate_telem_btn = QPushButton("Simulate Telemetry")
-        self.simulate_telem_btn.clicked.connect(lambda: self.simulate_data.emit('telemetry'))
+        scroll_widget.setLayout(scroll_layout)
+        scroll_area.setWidget(scroll_widget)
+        scroll_area.setWidgetResizable(True)
         
-        self.simulate_camera_btn = QPushButton("Simulate Camera")
-        self.simulate_camera_btn.clicked.connect(lambda: self.simulate_data.emit('camera'))
+        layout.addWidget(scroll_area)
+        frame.setLayout(layout)
         
-        control_layout.addWidget(self.start_btn)
-        control_layout.addWidget(self.stop_btn)
-        control_layout.addWidget(self.simulate_telem_btn)
-        control_layout.addWidget(self.simulate_camera_btn)
+        return frame
+    
+    def create_right_panel(self):
+        """Create the right panel with command prompt and graphs"""
+        right_frame = QFrame()
+        right_frame.setFrameStyle(QFrame.Shape.Box)
         
-        layout.addWidget(control_group)
-
-        # Activity Log
-        log_group = QGroupBox("Activity Log")
-        log_layout = QVBoxLayout(log_group)
+        layout = QVBoxLayout()
         
-        self.activity_log = QTextEdit()
-        self.activity_log.setMaximumHeight(200)
-        self.activity_log.setReadOnly(True)
-        log_layout.addWidget(self.activity_log)
+        # Command prompt at the top
+        command_frame = QFrame()
+        command_frame.setFrameStyle(QFrame.Shape.Box)
+        command_frame.setFixedHeight(150)
         
-        layout.addWidget(log_group)
-
-        layout.addStretch()  # Push everything to the top
-        return panel
-
-    def create_graphs_panel(self):
-        """Create the right panel containing the graph display."""
+        command_layout = QVBoxLayout()
+        command_title = QLabel("Command Control")
+        command_title.setFont(QFont("Arial", 14, QFont.Weight.Bold))
+        command_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        command_layout.addWidget(command_title)
+        
+        self.command_prompt = CommandPrompt()
+        command_layout.addWidget(self.command_prompt)
+        command_frame.setLayout(command_layout)
+        
+        layout.addWidget(command_frame)
+        
+        # Graph display area
+        graph_frame = QFrame()
+        graph_frame.setFrameStyle(QFrame.Shape.Box)
+        
+        graph_layout = QVBoxLayout()
+        graph_title = QLabel("Telemetry Graphs")
+        graph_title.setFont(QFont("Arial", 14, QFont.Weight.Bold))
+        graph_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        graph_layout.addWidget(graph_title)
+        
+        # Create graph display with all expanding graphs
+        self.graph_display = GraphDisplayLayout(
+            self.expanding_graphs,
+            w=900,
+            h=600,
+            update_interval=1000
+        )
+        graph_layout.addWidget(self.graph_display)
+        graph_frame.setLayout(graph_layout)
+        
+        layout.addWidget(graph_frame)
+        right_frame.setLayout(layout)
+        
+        return right_frame
+    
+    def setup_backend_connections(self):
+        """Setup connections between backend signals and GUI slots"""
+        self.backend_thread.packet_processed.connect(self.on_packet_processed)
+        self.backend_thread.image_updated.connect(self.on_image_updated)
+        self.backend_thread.telemetry_updated.connect(self.on_telemetry_updated)
+        self.backend_thread.error_occurred.connect(self.on_error_occurred)
+    
+    def setup_timers(self):
+        """Setup timers for auto-updating UI components"""
+        # Timer for updating image display
+        self.image_timer = QTimer()
+        self.image_timer.timeout.connect(self.update_image_display)
+        self.image_timer.start(2000)  # Update every 2 seconds
+        
+        # Timer for updating telemetry display
+        self.telemetry_timer = QTimer()
+        self.telemetry_timer.timeout.connect(self.update_telemetry_display)
+        self.telemetry_timer.start(1000)  # Update every 1 second
+    
+    def update_image_display(self):
+        """Update the image display with the latest image"""
         try:
-            # Create sample graphs (replace with actual data sources)
-            graphs = [
-                ExpandingGraph("time.csv", "altitude.csv", "Time", "Altitude", "Altitude vs Time"),
-                ExpandingGraph("longitude.csv", "latitude.csv", "Longitude", "Latitude", "Latitude vs Longitude"),
-                ExpandingGraph("altitude.csv", "pressure.csv", "Altitude", "Pressure", "Pressure vs Altitude"),
-                ExpandingGraph("altitude.csv", "temperature.csv", "Altitude", "Temperature", "Temperature vs Altitude"),
-                ExpandingGraph("time.csv", "gyro.csv", "Time", "Gyro", "Gyro vs Time")
-            ]
-            
-            # Create the graph display layout
-            self.graphs_layout = GraphDisplayLayout(graphs, 1000, 700, 1000)
-            return self.graphs_layout
-            
-        except Exception as e:
-            # Fallback if graph creation fails
-            error_widget = QWidget()
-            error_layout = QVBoxLayout(error_widget)
-            error_label = QLabel(f"Graph initialization failed: {str(e)}")
-            error_layout.addWidget(error_label)
-            return error_widget
-
-    def init_backend_thread(self):
-        """Initialize the backend worker thread."""
-        try:
-            # Create backend worker and thread
-            self.backend_worker = BackendWorker()
-            self.backend_thread = QThread()
-
-            # Move worker to thread
-            self.backend_worker.moveToThread(self.backend_thread)
-
-            # Connect signals from main thread to worker slots
-            self.start_backend.connect(self.backend_worker.start_processing)
-            self.stop_backend.connect(self.backend_worker.stop_processing)
-            self.process_data.connect(self.backend_worker.process_satellite_data)
-            self.simulate_data.connect(self.backend_worker.simulate_data_reception)
-
-            # Connect worker signals to main thread slots
-            self.backend_worker.data_received.connect(self.on_data_received)
-            self.backend_worker.telemetry_updated.connect(self.on_telemetry_updated)
-            self.backend_worker.image_received.connect(self.on_image_received)
-            self.backend_worker.status_updated.connect(self.on_status_updated)
-            self.backend_worker.error_occurred.connect(self.on_error_occurred)
-
-            # Connect thread lifecycle
-            self.backend_thread.started.connect(self.on_thread_started)
-            self.backend_thread.finished.connect(self.on_thread_finished)
-
-        except Exception as e:
-            self.log_activity(f"Error initializing backend thread: {str(e)}")
-
-    def setup_status_timer(self):
-        """Setup a timer to periodically update status information."""
-        self.status_timer = QTimer()
-        self.status_timer.timeout.connect(self.update_status_display)
-        self.status_timer.start(1000)  # Update every second
-
-    # Backend control methods
-    def start_backend_processing(self):
-        """Start the backend processing thread."""
-        try:
-            if not self.backend_thread.isRunning():
-                self.backend_thread.start()
-            
-            self.start_backend.emit()
-            self.start_btn.setEnabled(False)
-            self.stop_btn.setEnabled(True)
-            self.connection_status.setText("🟢 Connected")
-            self.log_activity("Backend processing started")
-            
-        except Exception as e:
-            self.log_activity(f"Error starting backend: {str(e)}")
-
-    def stop_backend_processing(self):
-        """Stop the backend processing thread."""
-        try:
-            self.stop_backend.emit()
-            self.start_btn.setEnabled(True)
-            self.stop_btn.setEnabled(False)
-            self.connection_status.setText("🔴 Disconnected")
-            self.log_activity("Backend processing stopped")
-            
-        except Exception as e:
-            self.log_activity(f"Error stopping backend: {str(e)}")
-
-    # Slot methods for backend signals
-    @pyqtSlot(str)
-    def on_data_received(self, message):
-        """Handle data received signal from backend."""
-        self.log_activity(message)
-
-    @pyqtSlot(dict)
-    def on_telemetry_updated(self, telemetry_data):
-        """Handle telemetry update signal from backend."""
-        self.packets_received.setText(f"Packets: {telemetry_data.get('packet_count', 0)}")
-        self.telemetry_status.setText("Data Received")
-        self.data_saved_status.setText("✅ Saved")
-        self.log_activity(f"Telemetry updated - Seq: {telemetry_data.get('sequence_number', 'N/A')}")
-
-    @pyqtSlot(str)
-    def on_image_received(self, message):
-        """Handle image received signal from backend."""
-        self.log_activity(f"Image: {message}")
-
-    @pyqtSlot(str)
-    def on_status_updated(self, status):
-        """Handle status update signal from backend."""
-        self.status_bar.showMessage(status)
-        self.log_activity(f"Status: {status}")
-
-    @pyqtSlot(str)
-    def on_error_occurred(self, error_message):
-        """Handle error signal from backend."""
-        self.log_activity(f"ERROR: {error_message}")
-        self.status_bar.showMessage(f"Error: {error_message}")
-
-    @pyqtSlot()
-    def on_thread_started(self):
-        """Handle thread started signal."""
-        self.log_activity("Backend thread started")
-
-    @pyqtSlot()
-    def on_thread_finished(self):
-        """Handle thread finished signal."""
-        self.log_activity("Backend thread finished")
-
-    # Utility methods
-    def log_activity(self, message):
-        """Add message to activity log."""
-        from datetime import datetime
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        formatted_message = f"[{timestamp}] {message}"
-        self.activity_log.append(formatted_message)
-        
-        # Keep log size reasonable
-        if self.activity_log.document().blockCount() > 100:
-            cursor = self.activity_log.textCursor()
-            cursor.movePosition(cursor.MoveOperation.Start)
-            cursor.select(cursor.SelectionType.BlockUnderCursor)
-            cursor.removeSelectedText()
-
-    def update_status_display(self):
-        """Update status display periodically."""
-        from datetime import datetime
-        # Update last contact time if backend is running
-        if self.backend_thread and self.backend_thread.isRunning() and self.backend_worker.is_running:
-            self.last_contact.setText(f"Last Contact: {datetime.now().strftime('%H:%M:%S')}")
-
-    # Cleanup and shutdown methods
-    def cleanup_backend(self):
-        """Clean up backend thread and worker."""
-        try:
-            if self.backend_worker:
-                self.stop_backend.emit()
-            
-            if self.backend_thread and self.backend_thread.isRunning():
-                self.backend_thread.quit()
-                if not self.backend_thread.wait(3000):  # Wait 3 seconds
-                    self.backend_thread.terminate()
-                    self.backend_thread.wait()
-            
-            self.log_activity("Backend cleanup completed")
-            
-        except Exception as e:
-            print(f"Error during backend cleanup: {str(e)}")
-
-    def closeEvent(self, event):
-        """Handle application close event."""
-        try:
-            # Show confirmation dialog
-            reply = QMessageBox.question(
-                self, 
-                'Confirm Exit', 
-                'Are you sure you want to exit the Ground Station?',
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.No
-            )
-            
-            if reply == QMessageBox.StandardButton.Yes:
-                self.log_activity("Shutting down Ground Station...")
-                
-                # Cleanup graphs
-                if self.graphs_layout:
-                    self.graphs_layout.close()
-                
-                # Cleanup backend
-                self.cleanup_backend()
-                
-                # Stop status timer
-                if hasattr(self, 'status_timer'):
-                    self.status_timer.stop()
-                
-                event.accept()
+            latest_image_path = self.image_api.get_latest_image_path()
+            if latest_image_path and os.path.exists(latest_image_path):
+                pixmap = QPixmap(latest_image_path)
+                if not pixmap.isNull():
+                    # Scale the image to fit the label
+                    scaled_pixmap = pixmap.scaled(
+                        self.image_label.size(),
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation
+                    )
+                    self.image_label.setPixmap(scaled_pixmap)
+                else:
+                    self.image_label.setText("Error loading image")
             else:
-                event.ignore()
-                
+                self.image_label.setText("No image available")
         except Exception as e:
-            print(f"Error during shutdown: {str(e)}")
-            event.accept()  # Force close on error
+            print(f"Error updating image display: {e}")
+            self.image_label.setText("Error loading image")
+    
+    def update_telemetry_display(self):
+        """Update the telemetry display with latest data"""
+        try:
+            latest_row = self.data_api.get_latest_row_tuple()
+            if latest_row:
+                # Update each field with the latest data
+                for i, value in enumerate(latest_row):
+                    field_key = f"Field_{i}"
+                    if field_key in self.telemetry_labels:
+                        self.telemetry_labels[field_key].setText(str(value))
+                        self.telemetry_labels[field_key].setStyleSheet("color: green; font-weight: bold;")
+            else:
+                # Set all fields to N/A if no data
+                for label in self.telemetry_labels.values():
+                    label.setText("-- N/A --")
+                    label.setStyleSheet("color: blue; font-weight: bold;")
+        except Exception as e:
+            print(f"Error updating telemetry display: {e}")
+    
+    # Backend signal handlers
+    def on_packet_processed(self, packet_info):
+        """Handle packet processed signal"""
+        print(f"Packet processed: {packet_info}")
+        # Force update of displays
+        self.update_telemetry_display()
+    
+    def on_image_updated(self, image_path):
+        """Handle image updated signal"""
+        print(f"Image updated: {image_path}")
+        self.update_image_display()
+    
+    def on_telemetry_updated(self):
+        """Handle telemetry updated signal"""
+        print("Telemetry data updated")
+        self.update_telemetry_display()
+    
+    def on_error_occurred(self, error_message):
+        """Handle error occurred signal"""
+        print(f"Backend error: {error_message}")
+        # You can add error display UI here
+    
+    def closeEvent(self, event):
+        """Handle application close event gracefully"""
+        print("Closing Ground Station application...")
+        
+        # Stop backend thread
+        self.backend_thread.stop_backend()
+        self.backend_thread.quit()
+        self.backend_thread.wait()
+        
+        # Stop timers
+        self.image_timer.stop()
+        self.telemetry_timer.stop()
+        
+        # Close graph display properly
+        self.graph_display.close()
+        
+        print("Application closed successfully")
+        event.accept()
 
 
 def main():
-    """Main application entry point."""
-    try:
-        # Create QApplication
-        app = QApplication(sys.argv)
-        app.setApplicationName("Ground Station Control")
-        app.setApplicationVersion("1.0")
-        
-        # Create and show main window
-        window = MainWindow()
-        window.show()
-        
-        # Start event loop
-        sys.exit(app.exec())
-        
-    except Exception as e:
-        print(f"Critical error starting application: {str(e)}")
-        sys.exit(1)
+    """Main application entry point"""
+    app = QApplication(sys.argv)
+    
+    # Set application properties
+    app.setApplicationName("Ground Station")
+    app.setApplicationVersion("1.0")
+    
+    # Create and show main window
+    window = GroundStationMainWindow()
+    window.show()
+    
+    # Run the application
+    sys.exit(app.exec())
 
 
 if __name__ == "__main__":
