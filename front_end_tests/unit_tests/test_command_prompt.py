@@ -13,7 +13,7 @@ from PyQt6.QtWidgets import QApplication, QLabel, QPushButton, QComboBox
 # Widgets, functions and variables to test
 from ground_station.frontend.command_prompt import CommandPrompt
 from ground_station.frontend.utils import add_to_queue, get_from_queue, valid_commands, queue
-from ground_station.frontend import utils
+from ground_station.backend import command_queue_state
 
 DEFAULT_MAX_NO_OF_COMMANDS = 7 # Default upper-limit for no. of commands used in testing
 
@@ -87,7 +87,7 @@ def reset_transfer_acknowledgement():
     Resets `transfer_acknowledgment` to `False`.
     """
 
-    utils.transfer_acknowledgment = False
+    command_queue_state.transfer_acknowledgment = False
 
 
 def generate_invalid_commands(n: int) -> list[str]:
@@ -152,9 +152,9 @@ class TestCommandPrompt:
 
         :param qapp: Fixture providing `Qt` application context.
         :param qtbot: Fixture for widget interaction.
-        :param reset_queue: Fixture to reset `queue` in `utils.py` after testing.
-        :param reset_transfer_acknowledgement: Fixture to reset `transfer_acknowledgement` in `utils.py` 
-        after testing.
+        :param reset_queue: Fixture to reset `queue` in `utils.py` before testing.
+        :param reset_transfer_acknowledgement: Fixture to reset `transfer_acknowledgement` in 
+        `command_queue_state.py` before testing.
         """
         
         widget = CommandPrompt()
@@ -174,13 +174,14 @@ class TestCommandPrompt:
             commands_submitted.append(dropdown.itemText(i).strip())
 
             # Checks if transfer is acknowledged before submission
-            assert utils.transfer_acknowledgment == False, \
+            assert command_queue_state.transfer_acknowledgment == False, \
                 "Transfer to queue should not have been acknowledged yet"
 
             qtbot.mouseClick(widget.submit_button, Qt.MouseButton.LeftButton)
             
             # Checks if submit was acknowledged
-            assert utils.transfer_acknowledgment == True, "Transfer to queue should have been acknowledged"
+            assert command_queue_state.transfer_acknowledgment == True, \
+                "Transfer to queue should have been acknowledged"
         
         # Checks if all the commands were added to queue
         assert queue.qsize() == dropdown.count(), \
@@ -207,9 +208,9 @@ class TestCommandPrompt:
         :param qapp: Fixture providing `Qt` application context.
         :param widget: Fixture providing an instance of `CommandPrompt`.
         :param monkeypatch: Fixture to patch `currentText()` of `widget.command_dropdown`.
-        :param reset_queue: Fixture to reset `queue` in `utils.py` after testing.
-        :param reset_transfer_acknowledgement: Fixture to reset `transfer_acknowledgement` in `utils.py` 
-        after testing.
+        :param reset_queue: Fixture to reset `queue` in `utils.py` before testing.
+        :param reset_transfer_acknowledgement: Fixture to reset `transfer_acknowledgement` in 
+        `command_queue_state.py` before testing.
         :param count: No. of invalid commands to test with.
         """
         
@@ -233,7 +234,10 @@ class TestCommandPrompt:
                 widget.process_command()
 
                 assert queue.empty(), "Command should not have been uploaded to queue"
-                assert utils.transfer_acknowledgment == False, "Transfer should not have been acknowledged"
+
+                assert command_queue_state.transfer_acknowledgment == False, \
+                    "Transfer should not have been acknowledged"
+                
                 assert widget.result_label == "Invalid command.", \
                     f"Expected \"Invalid command.\" got \"{widget.result_label}\""
             else:
@@ -253,9 +257,9 @@ class TestCommandPrompt:
         :param qapp: Fixture providing `Qt` application context.
         :param widget: Fixture providing an instance of `CommandPrompt`.
         :param monkeypatch: Fixture to patch `currentText()` of `widget.command_dropdown`.
-        :param reset_queue: Fixture to reset `queue` in `utils.py` after testing.
-        :param reset_transfer_acknowledgement: Fixture to reset `transfer_acknowledgement` in `utils.py` 
-        after testing.
+        :param reset_queue: Fixture to reset `queue` in `utils.py` before testing.
+        :param reset_transfer_acknowledgement: Fixture to reset `transfer_acknowledgement` in 
+        `command_queue_state.py` before testing.
         :param count: No. of commands to test with.
         """
         
@@ -312,9 +316,9 @@ class TestUtils:
         """
         Tests if `add_to_queue()` enqueues and `get_from_queue()` dequeues properly.
 
-        :param reset_queue: Fixture to reset `queue` in `utils.py` after test.
-        :param reset_transfer_acknowledgement: Fixture to reset `transfer_acknowledgement` in `utils.py` 
-        after test.
+        :param reset_queue: Fixture to reset `queue` in `utils.py` before test.
+        :param reset_transfer_acknowledgement: Fixture to reset `transfer_acknowledgement` in 
+        `command_queue_state.py` before test.
         :param count: No. of commands to test with.
         """
         
