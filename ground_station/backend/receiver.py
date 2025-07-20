@@ -1,22 +1,4 @@
 #!/usr/bin/env python
-from ground_station.backend.pass_app_layer import (
-    handle_ping,
-    handle_nominal,
-    handle_low_power,
-    handle_telemetry,
-    handle_camera1_end,
-    handle_camera1_mf,
-    handle_camera2_end,
-    handle_camera2_mf,
-    handle_req_init_transmission,
-    handle_error_peripheral,
-    handle_error_dup,
-    handle_error_lp,
-    handle_ack_camera,
-    handle_ack_telemetry,
-    handle_ack_status,
-    handle_ack_error
-)
 
 class ReceivedPacket():
     def __init__(self, data: bytes):
@@ -31,10 +13,12 @@ class ReceivedPacket():
         self.payload = None
         self.offset = None
         self.sequence_number = None
+        self.payload_length = 0
 
         try:
             # Total bits in data
             total_bits = len(data) * 8
+            payload_bytes_length = 0
 
             # Ensure data length is valid (at least 4 bits payload_type + 15 bits sequence number)
             assert total_bits > 19, "Data too short for defined format"
@@ -75,6 +59,7 @@ class ReceivedPacket():
 
                 self.offset = None  # Offset does not exist for these types
 
+            self.payload_length = payload_bytes_length
             # Extract sequence_number (last 15 bits)
             last_two_bytes = int.from_bytes(data[-2:], 'big')
             self.sequence_number = last_two_bytes & 0x7FFF  # Mask 15 bits
@@ -86,51 +71,7 @@ class ReceivedPacket():
             self.offset = None
             self.sequence_number = None
 
+        # Should we append the payload_type, offset and sequence number directly to the TX_queue?
+
     def __repr__(self):
-        return (f"ReceivedPacket(payload_type={self.payload_type}, "
-                f"offset={self.offset}, "
-                f"sequence_number={self.sequence_number})")
-
-    def pass_to_application(self):
-        '''
-        Passes payload to the application layer according to the address field (payload_type).
-        '''
-        if self.payload_type is None:
-            print("Invalid packet. Nothing to pass to application layer.")
-            return
-        if self.payload_type == 0b0000:
-            handle_ping(self.payload) # TODO:
-        elif self.payload_type == 0b0001:
-            handle_nominal(self.payload) # TODO:
-        elif self.payload_type == 0b0010:
-            handle_low_power(self.payload) # TODO:
-        elif self.payload_type == 0b0011:
-            handle_telemetry(self.payload) # TODO:
-        elif self.payload_type == 0b0100:
-            handle_camera1_end(self.payload) # TODO:
-        elif self.payload_type == 0b0101:
-            handle_camera1_mf(self.payload) # TODO:
-        elif self.payload_type == 0b0110:
-            handle_camera2_end(self.payload) # TODO:
-        elif self.payload_type == 0b0111:
-            handle_camera2_mf(self.payload) # TODO:
-
-        elif self.payload_type == 0b1000:
-            handle_switch(self.payload) # This payload type is only used once to turn on the satellite # TODO:
-        elif self.payload_type == 0b1001:
-            handle_error_peripheral(self.payload) # Type of peripheral malfunction provided in payload in english # TODO:
-        elif self.payload_type == 0b1010:
-            handle_error_dup(self.payload) # TODO:
-        elif self.payload_type == 0b1011:
-            handle_erro_lp(self.payload) # TODO:
-        elif self.payload_type == 0b1100:
-            handle_ack_camera(self.payload) # TODO:
-        elif self.payload_type == 0b1101:
-
-            handle_ack_telemetry(self.payload) # TODO:
-        elif self.payload_type == 0b1110:
-            handle_ack_status(self.payload) # TODO:
-        elif self.payload_type == 0b1111:
-            handle_ack_error(self.payload) # TODO:
-        else:
-            print(f"Unknown address field: {self.payload}. Payload not routed.")
+        return (f"ReceivedPacket(payload_type={self.payload_type}, length={self.payload_length}, offset={self.offset}, sequence_number={self.sequence_number}")

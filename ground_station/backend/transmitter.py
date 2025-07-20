@@ -1,4 +1,4 @@
-from exceptions import MaxTransmissionReachedException, IncorrectPayloadTypeException
+from exceptions import MaxTransmissionReachedException, IncorrectPayloadTypeException, IncorrectCommandTypeException
 
 PAYLOAD_TYPES = [
     ('Ping',                0b0000),
@@ -9,10 +9,10 @@ PAYLOAD_TYPES = [
     ('Camera-1-MF',         0b0101),
     ('Camera-2-End',        0b0110),
     ('Camera-2-MF',         0b0111),
-    ('Request Retransmit',  0b1000),
-    ('Error-CRC',           0b1001),
+    ('Request Retransmittion',  0b1000),
+    ('Error-Peripheral',           0b1001),
     ('Error-Duplication',   0b1010),
-    ('Error-Low Power',     0b1011),
+    ('Error-Low-Power',     0b1011),
     ('Ack Rec Camera',      0b1100),
     ('Ack Rec Telemetry',   0b1101),
     ('Ack Rec Status',      0b1110),
@@ -26,94 +26,101 @@ for type, code in PAYLOAD_TYPES:
 
 MAX_TRANSMISSION_LIMIT = 3 #dummy value small for testing
 
-
+#This class is used to send acknowledgements to the TTC.
 class GroundStationTransmitter():
-    sequence_number = 0
+    gs_sequence_number = 0
 
-    def __init__(self, payload_type, payload_data=None, offset=None, command=None):
+    def __init__(self,  payload_type=None, payload_data=None, payload_length=0, seq_num=None, offset=None):
         self.payload_type = payload_type
         self.payload_data = payload_data
+        self.payload_length = payload_length
         self.offset = offset
-        self.command = command
-        self.__class__.sequence_number+=1
-    
+        self.sequence_number = seq_num
+        self.sendonly_command = False
 
-    def construct_packet(self):
-        if self.payload_type not in PAYLOAD_TYPE_DICT.values():
-            raise IncorrectPayloadTypeException(f"Invalid payload type: {[type for type, code in PAYLOAD_TYPE_DICT.items() if code == self.payload_type]}")
-        
-        #initialize byte array
-        packet = bytearray()
-
-        packet.extend(self.payload_type)
-
+    def construct_packet(self, packet):
         try:
-            if self.payload_data:
-                #sending acknowledgement
-                #attach payload_data to packet
-                assert len(self.payload_type) > 0, "Payload length zero, does not exist!"
-                packet.extend(self.payload_data)
+            # Check if packet is a command? if yes then only add the payload sequence number and our sequence number
+            if not self.sendonly_command:
+                assert len(self.payload_data) > 0, "Payload length zero, does not exist!"
+
                 if self.offset:
                     assert len(self.offset) > 0, "Offset length zero, does not exists"
-                    #Camera Acknowledgement
-                    packet.extend(self.offset)
+                    # Handling camera data
+                    # add a payload with the number 1 or 2 based 
+                    # on which type of camera packet the gs has received (camera 1 mf/end or camera 2 mf/end)?
+                    if(self.payload_type == PAYLOAD_TYPE_DICT["Camera-1-End"]):
+                        packet.append(b'\x01')
+                    if(self.payload_type == PAYLOAD_TYPE_DICT["Camera-1-MF"]):
+                        packet.append(b'\x01')
+                    if(self.payload_type == PAYLOAD_TYPE_DICT["Camera-2-End"]):
+                        packet.append(b'\x02')
+                    if(self.payload_type == PAYLOAD_TYPE_DICT["Camera-2-MF"]):
+                        packet.append(b'\x02')
+                    
+                    #Camera Acknowledgement (Attach Offset)
+                    offset_number = int.from_bytes(self.offset, byteorder='big')
+                    offset_num = self.payload_length + offset_number
+
+                    #Calculate the number of bytes needed to store offset number
+                    # offset_bits = offset_num.bit_length()
+                    # offset_bytes = (offset_bits + 7) // 8
+                    offset_bytes = 3 # As per documentation
+
+                    #Convert the offset to bytes and attach it
+                    final_offset_bytes = offset_num.to_bytes(offset_bytes, byteorder='big')
+                    packet.append(final_offset_bytes)
+
+            # In case of a sendonly command set it false once handled.
+            if self.sendonly_command:
+                self.sendonly_command = False
             
-            if not self.payload_data and self.command:
-                #Sending command no payload_data
-                packet.extend(self.command)
+            # Add payload sequence number
+            if(self.sequence_number):
+                packet.append(self.sequence_number)
+
+            # Finally add the GS sequence number
+            gs_seq_num = GroundStationTransmitter.gs_sequence_number
+            gs_seq_num_bytes = gs_seq_num.to_bytes(2, byteorder='big')
+            packet.append(gs_seq_num_bytes)
+            GroundStationTransmitter.gs_sequence_number += 1
+
         except AssertionError as e:
             print(f"Assertion error {e}")
         except Exception as e:
             print(f"Error occured {e}")
-        
-        # Add sequence number at the end
-        # first we need to calculate the number of bytes the sequence number will take in binary representation
-        num_bytes = ((self.sequence_number.bit_length()) + 7) // 8  
-        seq_num_bytes = self.sequence_number.to_bytes(num_bytes, byteorder='big')
-
-        packet.extend(seq_num_bytes)
 
         return packet
+    
+    def ping(self):
+        # initialize the ping packet
+        packet = bytearray()
+        packet.append(PAYLOAD_TYPE_DICT['Ping'])
 
+        ping_packet = self.construct_packet(packet)
+        return ping_packet
 
-    def transmit_packet(self):
-        '''
-        Transit the constructed packet by calling the transmit function
+    # Check the commands queue in the main file for any incoming commands, if yes then send that command data type.
+    def command(self, command):
+        # command should be found in the PAYLOAD_TYPE_DICT
+        if command not in PAYLOAD_TYPE_DICT.keys():
+            raise IncorrectCommandTypeException(f'Invalid command type: {command}')
         
-        transmit_func accepts a bytes object
-        '''
-        try:
-            packet = self.construct_packet()
-            self.transmit_func(packet)
-        except MaxTransmissionReachedException as e:
-            print(f"Transmission failed after maximum attempts: {e}")
-        except IncorrectPayloadTypeException as e:
-            print(f"Incorrect payload type {e}")
+        self.sendonly_command = True
+        packet = bytearray()
+        packet.append(PAYLOAD_TYPE_DICT[command])
 
+        command_packet = self.construct_packet(packet)
+        return command_packet
 
-    def transmit_func(self, data: bytes):
-        packet_tx_attempts = 0
-        while True:
-            if packet_tx_attempts <= MAX_TRANSMISSION_LIMIT:
-                try:
-                    print(f'Packet {data} transmitted')
-                    # TODO Transmit packet to GNU radio
-                    break
-                except Exception as e:
-                    print(f"Transmission failed: {e}")
-                    packet_tx_attempts+=1
-                    continue
-            else:
-                raise MaxTransmissionReachedException(f'Max tranmission limit reached: {packet_tx_attempts}')
+    def ack(self):
+        # TODO construct an ACK packet
+        if self.payload_type not in PAYLOAD_TYPE_DICT.values():
+            raise IncorrectPayloadTypeException(f"Invalid payload type: {[type for type, code in PAYLOAD_TYPE_DICT.items() if code == self.payload_type]}")
+        
+        packet = bytearray()
+        packet.append(self.payload_type)
 
-# ================================================  testing code
-def test_groundstation():
-    gstx = GroundStationTransmitter(0b1111.to_bytes(1, 'big'))
-    print(f'Sequence number {gstx.sequence_number}')
-    gstx.construct_packet()
-    gstx.transmit_packet()
-
-# prints out sequence numbers till ten --> Transmit 10 packets
-for i in range(10):
-    test_groundstation()
-    i+=1
+        ack_packet = self.construct_packet(packet)
+        return ack_packet
+    

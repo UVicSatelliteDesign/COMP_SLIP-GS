@@ -1,7 +1,8 @@
 # Valid Commands Dictionary
 # Keys - Commands : Values - Binary
 
-from queue import Queue
+
+from ..backend import command_queue_state
 
 valid_commands = {
     "ping": "0000",
@@ -23,7 +24,7 @@ def get_binary_from_dict(command: str) -> str:
 
 # Queue to hold the converted data
 # queue = [] , not using this anymore.
-queue = Queue()
+queue = command_queue_state.command_queue
 
 # Transfer acknowledgment variable
 transfer_acknowledgment = False
