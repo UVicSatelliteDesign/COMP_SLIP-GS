@@ -263,12 +263,12 @@ class GroundStationMainWindow(QMainWindow):
         # Timer for updating image display
         self.image_timer = QTimer()
         self.image_timer.timeout.connect(self.update_image_display)
-        self.image_timer.start(2000)  # Update every 2 seconds
+        self.image_timer.start(30000)  # Update every 30 seconds
         
         # Timer for updating telemetry display
         self.telemetry_timer = QTimer()
         self.telemetry_timer.timeout.connect(self.update_telemetry_display)
-        self.telemetry_timer.start(1000)  # Update every 1 second
+        self.telemetry_timer.start(5000)  # Update every 5 second
     
     def update_image_display(self):
         """Update the image display with the latest image"""
