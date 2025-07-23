@@ -40,9 +40,9 @@ class BackendThread(QThread):
         """Run the backend worker"""
         self.backend_worker.run()
     
-    def stop_backend(self):
-        """Stop the backend worker"""
-        self.backend_worker.stop()
+    # def stop_backend(self):
+    #     """Stop the backend worker"""
+    #     self.backend_worker.stop()
 
 
 class GroundStationMainWindow(QMainWindow):
@@ -171,7 +171,7 @@ class GroundStationMainWindow(QMainWindow):
         # Create 13 data placeholders
         self.telemetry_labels = {}
         telemetry_fields = [
-            "Time", "Temperature", "Pressure", "Altitude", "Gyroscope X",
+            "GPS", "Temperature", "Pressure", "Altitude", "Gyroscope X",
             "Gyroscope Y", "Gyroscope Z", "Accelerometer X", "Accelerometer Y",
             "Accelerometer Z", "Battery Voltage", "Solar Panel Current", "Signal Strength"
         ]
@@ -338,7 +338,8 @@ class GroundStationMainWindow(QMainWindow):
         print("Closing Ground Station application...")
         
         # Stop backend thread
-        self.backend_thread.stop_backend()
+        self.backend_thread.stop()
+        # self.backend_thread.stop_backend()
         self.backend_thread.quit()
         self.backend_thread.wait()
         
