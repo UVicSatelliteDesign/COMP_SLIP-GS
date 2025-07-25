@@ -132,7 +132,11 @@ def image_generator(dir_path: Path = DIR_PATH):
             print(f"Failed to deleted temporary directory. Error:{e}")
     # Deletes directory and all its contents after all tests using this fixture are done
     if dir_path.exists() and dir_path.is_dir():
-        shutil.rmtree(dir_path)
+        try:
+            time.sleep(1)   # To give the OS time to release locks
+            shutil.rmtree(dir_path)
+        except Exception as e:
+            print(f"Failed to deleted temporary directory. Error:{e}")
 
 
 @pytest.fixture
