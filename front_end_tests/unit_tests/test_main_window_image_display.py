@@ -4,6 +4,8 @@ import shutil
 import pytest
 import numpy as np
 import random
+import gc
+import time
 from PIL import Image
 
 # For type hints
@@ -119,9 +121,15 @@ def image_generator(dir_path: Path = DIR_PATH):
 
     yield gen   # Yeilds control of GenerateDummyImage instance to tests
 
+    gc.collect()    # To trigger Python's garbage collection so temporary directory can be deleted
+
     # Deletes directory and all its contents after all tests using this fixture are done
     if dir_path.exists() and dir_path.is_dir():
-        shutil.rmtree(dir_path)
+        try:
+            time.sleep(1)   # To give the OS time to release locks
+            shutil.rmtree(dir_path)
+        except Exception as e:
+            print(f"Failed to deleted temporary directory. Error:{e}")
 
 
 @pytest.fixture
