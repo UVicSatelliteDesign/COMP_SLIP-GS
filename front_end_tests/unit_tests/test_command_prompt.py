@@ -238,7 +238,7 @@ class TestCommandPrompt:
                 assert command_queue_state.transfer_acknowledgment == False, \
                     "Transfer should not have been acknowledged"
                 
-                assert widget.result_label == "Invalid command.", \
+                assert widget.result_label.text() == "Invalid command.", \
                     f"Expected \"Invalid command.\" got \"{widget.result_label}\""
             else:
                 continue
