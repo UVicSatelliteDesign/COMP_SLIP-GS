@@ -177,7 +177,7 @@ class TestMainWindowImageDisplay:
             f'Expected "No image available", got "{image.text()}"'
         
         # Checks if no image is being displayed by default
-        assert image.pixmap() is None, \
+        assert image.pixmap() is None or image.pixmap().isNull(), \
             "By default, the image label should not have a pixmap set."
     
 
@@ -211,7 +211,7 @@ class TestMainWindowImageDisplay:
             image = widget.image_label
 
             # Checks if text on image display area is removed
-            assert image.text() is None, f'Expected no text, got "{image.text()}"'
+            assert not image.text(), f'Expected no text, got "{image.text()}"'
 
             # Checks if image display area is displaying an image
             assert (image.pixmap() is not None) and (not image.pixmap().isNull()), \
@@ -256,7 +256,7 @@ class TestMainWindowImageDisplay:
             image = widget.image_label
 
             # Checks if no image is currently being displayed
-            assert image.pixmap() is None, "Expected no image to be displayed"
+            assert image.pixmap() is None or image.pixmap().isNull(), "Expected no image to be displayed"
 
             # Checks if proper message is being displayed in the image display area
             assert image.text() == "Error loading image", \
@@ -302,7 +302,7 @@ class TestMainWindowImageDisplay:
             f"Expected error message to be printed" 
 
         # Checks if no image is being displayed in image display area
-        assert image.pixmap() is None, "Expected no image to be displayed"
+        assert image.pixmap() is None or image.pixmap().isNull(), "Expected no image to be displayed"
 
         # Checks if proper message is being displayed in image display area
         assert image.text() == "Error loading image", \
@@ -326,6 +326,11 @@ class TestMainWindowImageDisplay:
         :param count: No. of images to use in test.
         """
 
+        # Skip tests if count is less than or equal to 1, as it will cause the tests to run with 0
+        # images
+        if(count <= 1):
+            pytest.skip("Not enough images to test mixed behaviour")
+
         indices = list(range(1, count))  # Total images
 
         # Randomly selects images to be corrupted
@@ -347,14 +352,14 @@ class TestMainWindowImageDisplay:
             # Checks expected output base on image type
             if is_corrupt:
                 # Checks if no image is currently being displayed
-                assert image.pixmap() is None, "Expected no image to be displayed"
+                assert image.pixmap() is None or image.pixmap().isNull(), "Expected no image to be displayed"
 
                 # Checks if proper message is being displayed in the image display area
                 assert image.text() == "Error loading image", \
                     f'Expected "Error loading image", got {image.text()}'
             else:
                 # Checks if text on image display area is removed
-                assert image.text() is None, f'Expected no text, got "{image.text()}"'
+                assert not image.text(), f'Expected no text, got "{image.text()}"'
 
                 # Checks if image display area is displaying an image
                 assert (image.pixmap() is not None) and (not image.pixmap().isNull()), \
