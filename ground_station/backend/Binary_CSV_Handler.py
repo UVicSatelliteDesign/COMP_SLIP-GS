@@ -1,167 +1,294 @@
 import os
 import csv
+import struct
+from collections import namedtuple
 
 # ==============================================
-# GLOBAL FLAGS
+# GLOBAL VARIABLES
 # ==============================================
 DATA_SAVED = False       # Tracks whether camera data was successfully saved
 TELEMETRY_SAVED = False  # Tracks whether telemetry data was successfully saved
 
-class DataHandler:
-    """Handles camera and telemetry data packets from satellite and stores them appropriately."""
+# ==============================================
+# TELEMETRY DATA STRUCTURES
+# ==============================================
+BatteryData = namedtuple('BatteryData', [
+    'voltage', 
+    'current', 
+    'state_of_charge', 
+    'power_usage', 
+    'estimated_life'
+])
 
-    sequence_number = 0  # Class-level sequence number (for tracking)
+SensorsData = namedtuple('SensorsData', [
+    'temperature_obc',
+    'temperature_ttc',
+    'temperature_bms',
+    'gyroscope_axis_1',
+    'gyroscope_axis_2',
+    'gyroscope_axis_3',
+    'acceleration_x',
+    'acceleration_y',
+    'acceleration_z',
+    'altitude'
+])
+
+class DataHandler:
+    """Main class for handling satellite data packets including both camera images and telemetry data"""
+    
+    # Class-level variable shared across all instances
+    sequence_number = 0  # Tracks the sequence number of packets for ordering
 
     def __init__(self, data_type, payload_type=None, image_dir="images", telemetry_dir="telemetry"):
         """
-        Initializes handler for storing data from packets.
-
+        Initialize the data handler with storage directories
+        
         Args:
-            data_type (str): "camera" or "telemetry"
-            payload_type (int, optional): Packet type identifier (0x10, 0x11, etc.)
-            image_dir (str): Directory to store binary image files
+            data_type (str): Type of data this handler is responsible for ("camera" or "telemetry")
+            payload_type (int, optional): Specific payload type identifier (if applicable)
+            image_dir (str): Directory to store camera images
             telemetry_dir (str): Directory to store telemetry CSV files
         """
-        self.data_type = data_type
-        self.payload_type = payload_type
-        self.image_dir = image_dir
-        self.telemetry_dir = telemetry_dir
-        self.recent_files = {}
-        self.global_headers = []
-
-        os.makedirs(self.image_dir, exist_ok=True)
-        os.makedirs(self.telemetry_dir, exist_ok=True)
-        os.makedirs("database", exist_ok=True)  # For ExpandingGraph compatibility
+        # Initialize instance variables
+        self.image_dir = image_dir         # Directory for image storage
+        self.telemetry_dir = telemetry_dir # Directory for telemetry data
+        self.recent_files = {}             # Dictionary to track most recent files by identifier
+        self.global_headers = []           # List to store CSV column headers for telemetry data
+        
+        # Create directories if they don't exist, with error handling
+        try:
+            os.makedirs(self.image_dir, exist_ok=True)
+            os.makedirs(self.telemetry_dir, exist_ok=True)
+        except OSError as e:
+            print(f"Directory creation failed: {e}")
+            raise
 
     def process_packet(self, packet):
         """
-        Routes incoming packet to appropriate handler.
-
+        Main packet processing router that validates and directs packets to appropriate handlers
+        
         Args:
-            packet (bytes): Raw packet (first byte is payload type)
+            packet (bytes): Raw binary packet data received from satellite
         """
         try:
-            assert isinstance(packet, bytes), "Packet must be in bytes"
-            assert len(packet) >= 5, "Packet too short"
+            # Development-time validation checks
+            assert isinstance(packet, bytes), "Packet must be in bytes format"
+            assert len(packet) >= 5, "Packet must contain at least 5 bytes (1 byte type + 4 byte header)"
+            
+            # Extract payload type from first byte
+            payload_type = packet[0]  # 1 byte payload type identifier
+            payload = packet[1:]       # Actual payload data
 
-            payload_type = packet[0]
-            payload = packet[1:]
-
-            if payload_type == 0x10:
+            # Route to appropriate handler based on payload type
+            if payload_type == 0x10:  # Telemetry packet identifier
                 self.handle_telemetry_data(payload)
-            elif payload_type in [0x11, 0x12]:
+            elif payload_type in [0x11, 0x12]:  # Camera packet identifiers
                 self.handle_camera_data(payload)
             else:
-                print(f"⚠️ Unknown payload type: {payload_type}")
+                print(f"Unknown payload type: {payload_type}")
 
+        except AssertionError as e:
+            print(f"Invalid packet format: {e}")
         except Exception as e:
-            print(f"❌ Packet processing failed: {e}")
+            print(f"Packet processing failed: {e}")
 
     def handle_camera_data(self, payload):
         """
-        Stores binary camera image payload into .bin files.
-
-        Format:
-        - Byte 0: Identifier (1 byte)
-        - Byte 1-122: Image data (122 bytes)
-        - Byte 123-125: Offset (3 bytes)
-        - Byte 126-127: Sequence number (2 bytes)
-
+        Processes camera data payload including image data and offset information
+        
         Args:
-            payload (bytes): Camera payload
+            payload (bytes): Camera-specific payload data
         """
         global DATA_SAVED
-
+        
         try:
-            assert len(payload) <= 128, "Invalid camera payload size"
-            assert len(payload) >=3, "Invalid camera Payload size too small"
+            # Validate payload meets minimum size requirements (1B ID + 122B data + 2B seq + 3B offset)
+            assert len(payload) >= 128, f"Camera payload requires at least 128 bytes, got {len(payload)}"
+            
+            # Parse the payload into its components
+            identifier, seq_num, offset, image_data = self.parse_camera_payload(payload)
+            
+            # Generate filename using identifier and sequence number
+            file_path = os.path.join(
+                self.image_dir, 
+                f"{identifier}_{seq_num}.bin"  # Using .bin format
+            )
 
-            identifier = chr(payload[0])  # 1-byte ASCII
-            image_data = payload[1:123]   # 122 bytes of data
-            offset = int.from_bytes(payload[123:126], 'big')
-            seq_num = int.from_bytes(payload[126:128], 'big')
+            # Write image data to file with error handling
+            try:
+                # 'wb' mode if offset=0 (new file), 'ab' if offset>0 (append to existing)
+                with open(file_path, "wb" if offset == 0 else "ab") as f:
+                    f.write(image_data)
+            except IOError as e:
+                print(f"Failed to write image: {e}")
+                return
 
-            file_path = os.path.join(self.image_dir, f"{identifier}_{seq_num}.bin")
-
-            with open(file_path, "wb" if offset == 0 else "ab") as f:
-                f.write(image_data)
-
+            # Update tracking information
             self.recent_files[identifier] = file_path
-            DataHandler.sequence_number = (seq_num + 1) & 0xFFFF
             DATA_SAVED = True
-            print(f"✅ Image saved: {file_path}")
+            # Update class sequence number to last received + 1
+            DataHandler.sequence_number = (seq_num + 1) & 0xFFFF  # Ensure 16-bit wrap-around
 
+        except AssertionError as e:
+            print(f"Invalid camera data: {e}")
         except Exception as e:
-            print(f"❌ Camera processing error: {e}")
+            print(f"Camera processing error: {e}")
 
     def handle_telemetry_data(self, payload):
         """
-        Stores telemetry data in both combined and individual CSVs.
-
-        Format:
-        - Byte 0 to N-3: Comma-separated ASCII telemetry data
-        - Byte N-2 to N-1: 2-byte sequence number (big-endian)
-
+        Processes telemetry data payload and stores it in CSV format
+        
         Args:
-            payload (bytes): Telemetry payload
+            payload (bytes): Telemetry-specific payload data
         """
         global TELEMETRY_SAVED
-
+        
         try:
-            assert len(payload) > 2, "Telemetry payload too short"
-
-            data_bytes = payload[:-2]
-            values = self.parse_telemetry_payload(data_bytes)
+            # Validate payload contains data
+            assert len(payload) >= 3, "Telemetry payload must be at least 3 bytes"
+            
+            # Parse the raw payload into a list of values
+            values = self.parse_telemetry_payload(payload)
             if not values:
                 return
 
-            telemetry_csv = os.path.join(self.telemetry_dir, "telemetry.csv")
+            # Set up CSV file path
+            csv_file = os.path.join(self.telemetry_dir, "telemetry.csv")
 
+            # Initialize headers on first packet if needed
             if not self.global_headers:
                 self.global_headers = [f"Field_{i}" for i in range(len(values))]
 
-            # Write full row to telemetry.csv
-            with open(telemetry_csv, "a", newline="") as f:
-                writer = csv.writer(f)
-                if os.stat(telemetry_csv).st_size == 0:
-                    writer.writerow(self.global_headers)
-                writer.writerow(values)
-
-            # Write each field to separate database/Field_X.csv
-            for i, val in enumerate(values):
-                field_file = os.path.join("database", f"{self.global_headers[i]}.csv")
-                file_exists = os.path.exists(field_file)
-                with open(field_file, "a", newline="") as f:
+            # Write to CSV file with error handling
+            try:
+                with open(csv_file, "a", newline="") as f:
                     writer = csv.writer(f)
-                    if not file_exists:
-                        writer.writerow([self.global_headers[i]])
-                    writer.writerow([val])
+                    
+                    if os.stat(csv_file).st_size == 0:
+                        writer.writerow(self.global_headers)
+                    
+                    writer.writerow(values)
+            except IOError as e:
+                print(f"Failed to write telemetry: {e}")
+                return
 
             TELEMETRY_SAVED = True
-            print("✅ Telemetry saved successfully")
 
+        except AssertionError as e:
+            print(f"Invalid telemetry: {e}")
         except Exception as e:
-            print(f"❌ Telemetry processing error: {e}")
+            print(f"Telemetry processing error: {e}")
 
     def parse_camera_payload(self, payload):
         """
-        Legacy support (not used in new binary format).
+        Decodes camera payload into its components using new binary format
+        
+        Args:
+            payload (bytes): Raw camera payload data
+            
+        Returns:
+            tuple: (identifier, sequence_number, offset, image_data)
+            
+        Format:
+            - First 1 byte: ASCII identifier
+            - Next 122 bytes: Image data
+            - Next 2 bytes: Sequence number (big-endian)
+            - Next 3 bytes: Offset 
         """
-        pass  # Not required in final version
+        try:
+            identifier = chr(payload[0])                        # 1-byte identifier
+            image_data = payload[1:123]                         # 122 bytes of image data
+            seq_num = int.from_bytes(payload[123:125], 'big')  # 2-byte sequence number
+            offset = int.from_bytes(payload[125:128], 'big')   # 3-byte offset
+            return identifier, seq_num, offset, image_data
+            
+        except Exception as e:
+            print(f"Camera payload parsing failed: {e}")
+            raise
+
+    def decode_telemetry(self, payload):
+        """
+        NEW FUNCTION: Decodes binary telemetry data into structured format
+        
+        Args:
+            payload (bytes): Raw telemetry data including all subsystems
+            
+        Returns:
+            tuple: (battery1, battery2, battery3, sensors, gps) where:
+                - batteryX: BatteryData namedtuple
+                - sensors: SensorsData namedtuple
+                - gps: string (11-byte GPS sentence)
+                
+        Raises:
+            ValueError: If payload length is incorrect
+            struct.error: If binary unpacking fails
+        """
+        try:
+            # Verify payload length (3 batteries * 5 floats * 4 bytes + 
+            # sensors 10 floats * 4 bytes + GPS 11 bytes = 101 bytes)
+            expected_length = 3*5*4 + 10*4 + 11
+            if len(payload) != expected_length:
+                raise ValueError(f"Expected {expected_length} bytes, got {len(payload)}")
+
+            offset = 0
+            
+            # Helper function to unpack multiple floats
+            def unpack_flats(data, count, pos):
+                fmt = f'>{count}f'  # big-endian floats
+                values = struct.unpack_from(fmt, data, pos)
+                return values, pos + count*4
+            
+            # Decode Battery 1 (5 floats)
+            bat1_vals, offset = unpack_flats(payload, 5, offset)
+            battery1 = BatteryData(*bat1_vals)
+            
+            # Decode Battery 2 (5 floats)
+            bat2_vals, offset = unpack_flats(payload, 5, offset)
+            battery2 = BatteryData(*bat2_vals)
+            
+            # Decode Battery 3 (5 floats)
+            bat3_vals, offset = unpack_flats(payload, 5, offset)
+            battery3 = BatteryData(*bat3_vals)
+            
+            # Decode Sensors (10 floats)
+            sensors_vals, offset = unpack_flats(payload, 10, offset)
+            sensors = SensorsData(*sensors_vals)
+            
+            # Decode GPS (11 bytes ASCII)
+            gps = payload[offset:offset+11].decode('ascii', errors='replace')
+            
+            return (battery1, battery2, battery3, sensors, gps)
+            
+        except Exception as e:
+            print(f"Telemetry decoding failed: {e}")
+            raise
 
     def parse_telemetry_payload(self, payload):
         """
-        Converts ASCII CSV telemetry payload to list of values.
-
+        Updated to use the structured telemetry decoder
+        
         Args:
-            payload (bytes): e.g. b"12.5, 1023, 89.1"
-
+            payload (bytes): Raw telemetry data
+            
         Returns:
-            list[str]: Cleaned list of telemetry fields
+            list: Flat list of all values for CSV writing
         """
         try:
-            decoded = payload.decode('ascii', errors='replace').strip()
-            return [x.strip() for x in decoded.split(",") if x.strip()]
+            # First decode the structured data
+            battery1, battery2, battery3, sensors, gps = self.decode_telemetry(payload)
+            
+            # Flatten all data into a single list for CSV
+            values = [
+                *battery1,  # Unpacks battery1 tuple
+                *battery2,  # Unpacks battery2 tuple
+                *battery3,  # Unpacks battery3 tuple
+                *sensors,   # Unpacks sensors tuple
+                gps         # GPS string
+            ]
+            
+            # Convert all numbers to strings
+            return [str(v) for v in values]
+            
         except Exception as e:
-            print(f"❌ Telemetry parsing failed: {e}")
+            print(f"Telemetry parsing failed: {e}")
             return []
