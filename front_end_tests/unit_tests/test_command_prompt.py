@@ -17,23 +17,6 @@ from ground_station.frontend import utils
 
 DEFAULT_MAX_NO_OF_COMMANDS = 7 # Default upper-limit for no. of commands used in testing
 
-# Hook for optional user input of custom upper-limit for the no. of commands to test with
-def pytest_addoption(parser: pytest.Parser):
-    """
-    `pytest` hook to customize the upper-limit of no. of commands to be used in testing.
-    Default upper limit is stored in `DEFAULT_MAX_NO_OF_COMMANDS`.
-
-    :param parser: `pytest` command line parser object.
-    """
-
-    parser.addoption(
-        "--max_commands",
-        action = "store",
-        default = DEFAULT_MAX_NO_OF_COMMANDS,
-        type = int,
-        help = "Max no. of commands to be used for testing",
-    )
-
 
 def pytest_generate_tests(metafunc: pytest.Metafunc):
     """
@@ -81,13 +64,17 @@ def reset_queue():
     while not queue.empty():
             queue.get()
 
+def update_transfer_acknowledgement():
+    utils.transfer_acknowledgment = False
+
 @pytest.fixture
 def reset_transfer_acknowledgement():
     """
     Resets `transfer_acknowledgment` to `False`.
     """
+    update_transfer_acknowledgement()
 
-    utils.transfer_acknowledgment = False
+    
 
 
 def generate_invalid_commands(n: int) -> list[str]:
@@ -165,6 +152,7 @@ class TestCommandPrompt:
 
         # Selecting each command and submitting it
         for i in range(dropdown.count()):
+            update_transfer_acknowledgement()
             dropdown.setCurrentIndex(i)
 
             # Checks if correct command was selected
@@ -234,8 +222,8 @@ class TestCommandPrompt:
 
                 assert queue.empty(), "Command should not have been uploaded to queue"
                 assert utils.transfer_acknowledgment == False, "Transfer should not have been acknowledged"
-                assert widget.result_label == "Invalid command.", \
-                    f"Expected \"Invalid command.\" got \"{widget.result_label}\""
+                assert widget.result_label.text() == "Invalid command.", \
+                    f"Expected \"Invalid command.\" got \"{widget.result_label.text()}\""
             else:
                 continue
     
