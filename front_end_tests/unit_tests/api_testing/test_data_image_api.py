@@ -1,3 +1,4 @@
+import time
 import pytest
 import csv
 import os
@@ -73,6 +74,7 @@ class TestImageAPI:
         dir_path = tmp_path / "images"
         dir_path.mkdir()
         (dir_path / "20240701.jpeg").write_bytes(os.urandom(1024))
+        time.sleep(0.01) # Ensure different timestamps
         (dir_path / "20240702.jpeg").write_bytes(os.urandom(1024))
         (dir_path / "note.txt").write_text("not an image")
         return dir_path
@@ -91,7 +93,7 @@ class TestImageAPI:
         Checks if latest image (by name) is returned correctly.
         """
         api = ImageAPI(image_dir=populated_dir)
-        assert api.get_latest_image_path() == "20240702"
+        assert api.get_latest_image_path().stem == "20240702"
 
     def test_ignores_non_image_files(self, populated_dir):
         """
@@ -99,7 +101,7 @@ class TestImageAPI:
         """
         api = ImageAPI(image_dir=populated_dir)
         latest = api.get_latest_image_path()
-        assert latest.endswith("20240702")
+        assert latest.__str__().endswith("20240702.jpeg")
 
     def test_empty_image_folder(self, empty_dir):
         """

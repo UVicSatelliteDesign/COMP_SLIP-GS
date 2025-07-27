@@ -81,7 +81,7 @@ class ImageAPI:
         # not sure if filenames are guaranteed to imply the creation order so sticking to this method for now.
         # If there is an equivalent to reading the last line in a CSV for this such as filename storing timestamp please let me know.
 
-        return str(latest_file)
+        return latest_file
 
 
 """    # These are a few examples for specific image getters 
