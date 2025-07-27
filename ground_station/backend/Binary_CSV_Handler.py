@@ -51,7 +51,7 @@ class DataHandler:
         """
         # Initialize instance variables
         self.image_dir = image_dir         # Directory for image storage
-        self.telemetry_dir = telemetry_dir # Directory for telemetry data
+        self.telemetry_dir = telemetry_dir  # Directory for telemetry data
         self.recent_files = {}             # Dictionary to track most recent files by identifier
         self.global_headers = []           # List to store CSV column headers for telemetry data
         
@@ -106,12 +106,12 @@ class DataHandler:
             assert len(payload) >= 128, f"Camera payload requires at least 128 bytes, got {len(payload)}"
             
             # Parse the payload into its components
-            identifier, seq_num, offset, image_data = self.parse_camera_payload(payload)
+            seq_num, offset, image_data = self.parse_camera_payload(payload)
             
             # Generate filename using identifier and sequence number
             file_path = os.path.join(
                 self.image_dir, 
-                f"{identifier}_{seq_num}.bin"  # Using .bin format
+                f"camera_{seq_num}.bin"  # Using .bin format
             )
 
             # Write image data to file with error handling
@@ -124,7 +124,7 @@ class DataHandler:
                 return
 
             # Update tracking information
-            self.recent_files[identifier] = file_path
+            self.recent_files[seq_num] = file_path
             DATA_SAVED = True
             # Update class sequence number to last received + 1
             DataHandler.sequence_number = (seq_num + 1) & 0xFFFF  # Ensure 16-bit wrap-around
@@ -145,7 +145,7 @@ class DataHandler:
         
         try:
             # Validate payload contains data
-            assert len(payload) >= 3, "Telemetry payload must be at least 3 bytes"
+            assert len(payload) >= 101, "Telemetry payload must be at least 101 bytes"
             
             # Parse the raw payload into a list of values
             values = self.parse_telemetry_payload(payload)
@@ -157,7 +157,21 @@ class DataHandler:
 
             # Initialize headers on first packet if needed
             if not self.global_headers:
-                self.global_headers = [f"Field_{i}" for i in range(len(values))]
+                self.global_headers = [
+                    # Battery 1
+                    'bat1_voltage', 'bat1_current', 'bat1_soc', 'bat1_power', 'bat1_life',
+                    # Battery 2
+                    'bat2_voltage', 'bat2_current', 'bat2_soc', 'bat2_power', 'bat2_life',
+                    # Battery 3
+                    'bat3_voltage', 'bat3_current', 'bat3_soc', 'bat3_power', 'bat3_life',
+                    # Sensors
+                    'temp_obc', 'temp_ttc', 'temp_bms',
+                    'gyro_x', 'gyro_y', 'gyro_z',
+                    'accel_x', 'accel_y', 'accel_z',
+                    'altitude',
+                    # GPS
+                    'gps'
+                ]
 
             # Write to CSV file with error handling
             try:
@@ -181,26 +195,19 @@ class DataHandler:
 
     def parse_camera_payload(self, payload):
         """
-        Decodes camera payload into its components using new binary format
+        Decodes camera payload into its components (updated as per team lead's request)
         
         Args:
             payload (bytes): Raw camera payload data
             
         Returns:
-            tuple: (identifier, sequence_number, offset, image_data)
-            
-        Format:
-            - First 1 byte: ASCII identifier
-            - Next 122 bytes: Image data
-            - Next 2 bytes: Sequence number (big-endian)
-            - Next 3 bytes: Offset 
+            tuple: (sequence_number, offset, image_data)
         """
         try:
-            identifier = chr(payload[0])                        # 1-byte identifier
             image_data = payload[1:123]                         # 122 bytes of image data
             seq_num = int.from_bytes(payload[123:125], 'big')  # 2-byte sequence number
             offset = int.from_bytes(payload[125:128], 'big')   # 3-byte offset
-            return identifier, seq_num, offset, image_data
+            return seq_num, offset, image_data
             
         except Exception as e:
             print(f"Camera payload parsing failed: {e}")
@@ -208,25 +215,18 @@ class DataHandler:
 
     def decode_telemetry(self, payload):
         """
-        NEW FUNCTION: Decodes binary telemetry data into structured format
+        Decodes binary telemetry data into structured format
         
         Args:
             payload (bytes): Raw telemetry data including all subsystems
             
         Returns:
-            tuple: (battery1, battery2, battery3, sensors, gps) where:
-                - batteryX: BatteryData namedtuple
-                - sensors: SensorsData namedtuple
-                - gps: string (11-byte GPS sentence)
-                
-        Raises:
-            ValueError: If payload length is incorrect
-            struct.error: If binary unpacking fails
+            tuple: (battery1, battery2, battery3, sensors, gps)
         """
         try:
             # Verify payload length (3 batteries * 5 floats * 4 bytes + 
             # sensors 10 floats * 4 bytes + GPS 11 bytes = 101 bytes)
-            expected_length = 3*5*4 + 10*4 + 11
+            expected_length = 101
             if len(payload) != expected_length:
                 raise ValueError(f"Expected {expected_length} bytes, got {len(payload)}")
 
@@ -257,7 +257,7 @@ class DataHandler:
             # Decode GPS (11 bytes ASCII)
             gps = payload[offset:offset+11].decode('ascii', errors='replace')
             
-            return (battery1, battery2, battery3, sensors, gps)
+            return battery1, battery2, battery3, sensors, gps
             
         except Exception as e:
             print(f"Telemetry decoding failed: {e}")
@@ -265,29 +265,26 @@ class DataHandler:
 
     def parse_telemetry_payload(self, payload):
         """
-        Updated to use the structured telemetry decoder
+        Parse telemetry payload while preserving numerical values for graphing
         
         Args:
             payload (bytes): Raw telemetry data
             
         Returns:
-            list: Flat list of all values for CSV writing
+            list: Raw numerical values (no string conversion)
         """
         try:
             # First decode the structured data
             battery1, battery2, battery3, sensors, gps = self.decode_telemetry(payload)
             
-            # Flatten all data into a single list for CSV
-            values = [
-                *battery1,  # Unpacks battery1 tuple
-                *battery2,  # Unpacks battery2 tuple
-                *battery3,  # Unpacks battery3 tuple
-                *sensors,   # Unpacks sensors tuple
-                gps         # GPS string
+            # Return numerical values in this exact order:
+            return [
+                *battery1,  # 5 battery1 metrics (floats)
+                *battery2,  # 5 battery2 metrics (floats)
+                *battery3,  # 5 battery3 metrics (floats)
+                *sensors,   # 10 sensor metrics (floats)
+                gps         # 1 GPS string
             ]
-            
-            # Convert all numbers to strings
-            return [str(v) for v in values]
             
         except Exception as e:
             print(f"Telemetry parsing failed: {e}")
