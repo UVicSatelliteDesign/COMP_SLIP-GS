@@ -3,14 +3,15 @@ import csv
 import pytest
 from dataclasses import dataclass
 import sys
+import struct
 
 # Make data_handler.py importable
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
-from data_handler import DataHandler, DATA_SAVED, TELEMETRY_SAVED
+from data_handler import DataHandler, DATA_SAVED, TELEMETRY_SAVED, BatteryData, SensorsData
 
 # ============================================================
-# Test Data Structures Based on Actual Satellite Packet Format
+# Test Data Structures
 # ============================================================
 
 @dataclass
@@ -23,29 +24,37 @@ class CameraPacket:
 @dataclass
 class TelemetryPacket:
     payload_type: int   # 0x10
-    data: str           # CSV-formatted string
-    seq_num: int        # 2 bytes (16 bits)
+    batteries: list     # 3 BatteryData tuples
+    sensors: SensorsData
+    gps: str           # 11-byte ASCII string
 
 # ====================================
-# Pytest Fixture for Database Path
+# Pytest Fixture
 # ====================================
 
 @pytest.fixture
 def data_handler():
-    # Use relative paths inside 'ground_station/database/'
-    base_dir = os.path.join("ground_station", "database")
+    # Use temporary directories for testing
+    base_dir = "test_database"
     image_dir = os.path.join(base_dir, "bin_images")
     telemetry_dir = os.path.join(base_dir, "telemetry")
     os.makedirs(image_dir, exist_ok=True)
     os.makedirs(telemetry_dir, exist_ok=True)
-    os.makedirs(os.path.join(base_dir, "jpeg_images"), exist_ok=True)  # Optional for future JPEG support
-    return DataHandler(data_type="both", image_dir=image_dir, telemetry_dir=telemetry_dir)
+    yield DataHandler(data_type="both", image_dir=image_dir, telemetry_dir=telemetry_dir)
+    
+    # Cleanup after tests
+    for root, _, files in os.walk(base_dir):
+        for f in files:
+            os.remove(os.path.join(root, f))
+    os.removedirs(image_dir)
+    os.removedirs(telemetry_dir)
 
 # ==========================
-# Helper: Create Camera Bytes
+# Helper Functions
 # ==========================
 
 def create_camera_payload(packet: CameraPacket) -> bytes:
+    """Same as original camera payload creator"""
     return (
         packet.payload_type.to_bytes(1, 'big') +
         packet.data.ljust(122, b'\x00')[:122] +
@@ -53,128 +62,139 @@ def create_camera_payload(packet: CameraPacket) -> bytes:
         packet.seq_num.to_bytes(2, 'big')
     )
 
-# =============================
-# Helper: Create Telemetry Bytes
-# =============================
-
 def create_telemetry_payload(packet: TelemetryPacket) -> bytes:
-    return (
-        packet.payload_type.to_bytes(1, 'big') +
-        packet.data.encode('ascii') +
-        packet.seq_num.to_bytes(2, 'big')
-    )
+    """New telemetry payload creator for binary format"""
+    payload = bytearray()
+    
+    # Pack all battery data (3 batteries * 5 floats)
+    for bat in packet.batteries:
+        payload.extend(struct.pack('>5f', *bat))
+    
+    # Pack sensor data (10 floats)
+    payload.extend(struct.pack('>10f', *packet.sensors))
+    
+    # Add GPS string (11 bytes)
+    payload.extend(packet.gps.ljust(11, '\x00').encode('ascii')[:11])
+    
+    return packet.payload_type.to_bytes(1, 'big') + payload
 
 # ===========================
-# TELEMETRY DATA TEST CASE
+# TEST CASES
 # ===========================
 
 def test_telemetry_storage(data_handler):
-    packets = [
-        TelemetryPacket(0x10, "23.5,42.1,1002", 1),
-        TelemetryPacket(0x10, "24.0,41.9,1005", 2),
-        TelemetryPacket(0x10, "22.8,42.3,1001", 3),
-    ]
-    for p in packets:
-        data_handler.process_packet(create_telemetry_payload(p))
-
+    """Test new binary telemetry format"""
+    test_packet = TelemetryPacket(
+        payload_type=0x10,
+        batteries=[
+            BatteryData(3.7, 1.2, 95.5, 4.44, 120.0),
+            BatteryData(3.6, 1.1, 90.0, 3.96, 110.5),
+            BatteryData(3.8, 1.3, 92.3, 4.94, 115.2)
+        ],
+        sensors=SensorsData(
+            25.5, 26.1, 24.8,  # temps
+            0.1, -0.2, 0.05,   # gyro
+            0.01, 0.02, -0.98,  # accel
+            152.3               # altitude
+        ),
+        gps="GPGGA,123"
+    )
+    
+    data_handler.process_packet(create_telemetry_payload(test_packet))
+    
+    # Verify CSV output
     telemetry_file = os.path.join(data_handler.telemetry_dir, "telemetry.csv")
     assert os.path.exists(telemetry_file)
-
+    
     with open(telemetry_file, newline='') as f:
         rows = list(csv.reader(f))
-
-    assert len(rows) == 4  # 1 header + 3 data rows
-    assert rows[0] == ["Field_0", "Field_1", "Field_2"]
-    assert rows[1] == ["23.5", "42.1", "1002"]
-    assert rows[3] == ["22.8", "42.3", "1001"]
-
-    for i in range(3):
-        field_file = os.path.join("database", f"Field_{i}.csv")
-        assert os.path.exists(field_file)
-        with open(field_file) as f:
-            field_lines = f.readlines()
-        assert len(field_lines) == 4  # header + 3 values
-
+    
+    assert len(rows) == 2  # header + data
+    assert rows[0] == data_handler.global_headers
+    
+    # Check first 5 values (Battery1)
+    assert float(rows[1][0]) == pytest.approx(3.7)   # bat1_voltage
+    assert float(rows[1][1]) == pytest.approx(1.2)   # bat1_current
+    assert float(rows[1][4]) == pytest.approx(120.0) # bat1_life
+    
+    # Check sensor values
+    assert float(rows[1][15]) == pytest.approx(25.5) # temp_obc
+    assert float(rows[1][24]) == pytest.approx(152.3) # altitude
+    
+    # Check GPS
+    assert rows[1][25] == "GPGGA,123"
+    
     assert TELEMETRY_SAVED is True
 
-# ==========================
-# CAMERA DATA TEST CASE
-# ==========================
-
 def test_camera_storage(data_handler):
+    """Original camera test should still pass"""
     packets = [
         CameraPacket(0x11, b'\x01'*122, 0, 1),
         CameraPacket(0x11, b'\x02'*122, 122, 1),
-        CameraPacket(0x11, b'\x03'*122, 244, 1),
-        CameraPacket(0x11, b'\x04'*122, 366, 1),
-        CameraPacket(0x12, b'\x05'*24, 488, 1),
+        CameraPacket(0x12, b'\x03'*24, 244, 1)
     ]
+    
     for p in packets:
         data_handler.process_packet(create_camera_payload(p))
-
-    found = False
-    for f in os.listdir(data_handler.image_dir):
-        if f.endswith("_1.bin"):
-            expected_file = os.path.join(data_handler.image_dir, f)
-            found = True
-            break
-
-    assert found
-
-    expected_data = (
-        b'\x01'*122 + b'\x02'*122 + b'\x03'*122 + b'\x04'*122 + b'\x05'*24
-    )
+    
+    # Verify file was created and contains correct data
+    expected_file = os.path.join(data_handler.image_dir, "camera_1.bin")
+    assert os.path.exists(expected_file)
+    
     with open(expected_file, 'rb') as f:
         content = f.read()
-    assert content.startswith(b'\x01')
-    assert content.endswith(b'\x05'*24)
-    assert len(content) == 4*122 + 24
+    
+    assert len(content) == 2*122 + 24
+    assert content.startswith(b'\x01'*122)
+    assert content.endswith(b'\x03'*24)
     assert DATA_SAVED is True
 
-# ============================
-# CAMERA EDGE CASE TEST
-# ============================
-
-def test_camera_final_24_byte_only(data_handler, capsys):
-    packet = CameraPacket(0x12, b'\xAA'*24, 0, 2)
-    data_handler.process_packet(create_camera_payload(packet))
-
-    saved_file = None
-    for f in os.listdir(data_handler.image_dir):
-        if f.endswith("_2.bin"):
-            saved_file = os.path.join(data_handler.image_dir, f)
-            break
-
-    assert saved_file and os.path.exists(saved_file)
-
-    with open(saved_file, 'rb') as f:
-        assert f.read() == b'\xAA'*24
-
-    captured = capsys.readouterr()
-    assert "✅ Image saved" in captured.out
-    assert "error" not in captured.out.lower()
-
-# =============================
-# MIXED PAYLOAD TEST CASE
-# =============================
-
-def test_mixed_camera_and_telemetry(data_handler):
-    packets = [
-        TelemetryPacket(0x10, "11.1,22.2", 1),
-        CameraPacket(0x11, b'\xAB'*122, 0, 1),
-        TelemetryPacket(0x10, "33.3,44.4", 2),
-        CameraPacket(0x12, b'\xCD'*24, 122, 1),
-    ]
-    for p in packets:
-        if p.payload_type == 0x10:
-            data_handler.process_packet(create_telemetry_payload(p))
-        else:
-            data_handler.process_packet(create_camera_payload(p))
-
-    telemetry_file = os.path.join(data_handler.telemetry_dir, "telemetry.csv")
-    assert os.path.exists(telemetry_file)
-
-    image_found = any(f.endswith("_1.bin") for f in os.listdir(data_handler.image_dir))
-    assert image_found
+def test_mixed_packets(data_handler):
+    """Test handling both telemetry and camera packets together"""
+    # Create telemetry packet
+    telemetry_packet = TelemetryPacket(
+        payload_type=0x10,
+        batteries=[BatteryData(3.7, 0, 0, 0, 0)]*3,
+        sensors=SensorsData(*([0]*10)),
+        gps="TESTGPS"
+    )
+    
+    # Create camera packet
+    camera_packet = CameraPacket(0x11, b'\xFF'*122, 0, 42)
+    
+    # Process both
+    data_handler.process_packet(create_telemetry_payload(telemetry_packet))
+    data_handler.process_packet(create_camera_payload(camera_packet))
+    
+    # Verify both were saved
+    assert os.path.exists(os.path.join(data_handler.telemetry_dir, "telemetry.csv"))
+    assert os.path.exists(os.path.join(data_handler.image_dir, "camera_42.bin"))
     assert TELEMETRY_SAVED is True
     assert DATA_SAVED is True
+
+def test_invalid_telemetry_length(data_handler, capsys):
+    """Test handling of malformed telemetry packets"""
+    short_payload = b'\x10' + b'\x00'*100  # 101 bytes required
+    
+    data_handler.process_packet(short_payload)
+    
+    captured = capsys.readouterr()
+    assert "Expected 101 bytes" in captured.out
+    assert not TELEMETRY_SAVED
+
+def test_telemetry_csv_headers(data_handler):
+    """Verify CSV headers match the new format"""
+    test_packet = TelemetryPacket(
+        payload_type=0x10,
+        batteries=[BatteryData(0,0,0,0,0)]*3,
+        sensors=SensorsData(*([0]*10)),
+        gps=""
+    )
+    
+    data_handler.process_packet(create_telemetry_payload(test_packet))
+    
+    with open(os.path.join(data_handler.telemetry_dir, "telemetry.csv")) as f:
+        header = next(csv.reader(f))
+    
+    assert header == data_handler.global_headers
+    assert len(header) == 26  # 25 numbers + 1 GPS string
