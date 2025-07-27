@@ -91,14 +91,14 @@ class TestImageAPI:
         Checks if latest image (by name) is returned correctly.
         """
         api = ImageAPI(image_dir=populated_dir)
-        assert api.get_latest_image_name() == "20240702"
+        assert api.get_latest_image_path() == "20240702"
 
     def test_ignores_non_image_files(self, populated_dir):
         """
         Confirms that text files are ignored when finding the latest image.
         """
         api = ImageAPI(image_dir=populated_dir)
-        latest = api.get_latest_image_name()
+        latest = api.get_latest_image_path()
         assert latest.endswith("20240702")
 
     def test_empty_image_folder(self, empty_dir):
@@ -106,7 +106,7 @@ class TestImageAPI:
         Confirms that None is returned when the folder has no images.
         """
         api = ImageAPI(image_dir=empty_dir)
-        assert api.get_latest_image_name() is None
+        assert api.get_latest_image_path() is None
 
     def test_folder_with_only_non_images(self, tmp_path):
         """
@@ -116,7 +116,7 @@ class TestImageAPI:
         dir_path.mkdir()
         (dir_path / "hello.txt").write_text("text")
         api = ImageAPI(image_dir=dir_path)
-        assert api.get_latest_image_name() is None
+        assert api.get_latest_image_path() is None
 
     def test_get_latest_image_path(self, populated_dir):
         """

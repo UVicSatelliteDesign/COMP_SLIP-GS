@@ -70,10 +70,13 @@ class ImageAPI:
 
     # Returns the most recently modified JPEG file in the image directory
     def get_latest_image_path(self) -> str | None:
-        jpg_files = list(self.image_dir.glob("*.jpg"))  # not sure whether to type jpeg or jpg here
-        if not jpg_files:
+        image_extensions = ["*.jpg", "*.jpeg", "*.png"] # not sure whether to type jpeg or jpg here
+        image_files = []
+        for ext in image_extensions:
+            image_files.extend(self.image_dir.glob(ext))
+        if not image_files:
             return None
-        latest_file = max(jpg_files, key=os.path.getmtime)
+        latest_file = max(image_files, key=os.path.getmtime)
         # Im using getmtime to find the most recently modified .jpg file,
         # not sure if filenames are guaranteed to imply the creation order so sticking to this method for now.
         # If there is an equivalent to reading the last line in a CSV for this such as filename storing timestamp please let me know.
