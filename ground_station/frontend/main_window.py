@@ -257,6 +257,7 @@ class GroundStationMainWindow(QMainWindow):
         self.backend_thread.image_updated.connect(self.on_image_updated)
         self.backend_thread.telemetry_updated.connect(self.on_telemetry_updated)
         self.backend_thread.error_occurred.connect(self.on_error_occurred)
+        self.backend_thread.
     
     def setup_timers(self):
         """Setup timers for auto-updating UI components"""
