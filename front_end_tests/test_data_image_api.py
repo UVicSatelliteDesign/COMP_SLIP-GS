@@ -91,8 +91,9 @@ class TestImageAPI:
         Checks if latest image (by name) is returned correctly.
         """
         api = ImageAPI(image_dir=populated_dir)
-        path = api.get_latest_image_path()
-        assert path is not None
+        result = api.get_latest_image_path()
+        assert result is not None
+        path = Path(result)
         assert path.stem == "20240702"
 
     def test_ignores_non_image_files(self, populated_dir):
@@ -100,8 +101,9 @@ class TestImageAPI:
         Confirms that text files are ignored when finding the latest image.
         """
         api = ImageAPI(image_dir=populated_dir)
-        path = api.get_latest_image_path()
-        assert path is not None
+        result = api.get_latest_image_path()
+        assert result is not None
+        path = Path(result)
         assert path.suffix == ".jpg"
         assert path.name == "20240702.jpg"
 
@@ -124,10 +126,11 @@ class TestImageAPI:
 
     def test_get_latest_image_path(self, populated_dir):
         """
-        Checks that the correct Path object is returned and exists.
+        Checks that the correct path string is returned and the file exists.
         """
         api = ImageAPI(image_dir=populated_dir)
-        path = api.get_latest_image_path()
-        assert path is not None
+        result = api.get_latest_image_path()
+        assert result is not None
+        path = Path(result)
         assert path.name == "20240702.jpg"
         assert path.exists()
