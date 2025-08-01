@@ -18,33 +18,6 @@ from ground_station.backend.Binary_CSV_Handler import DataHandler, DATA_SAVED, T
 from main import BackendWorkerMain
 
 
-class BackendThread(QThread):
-    """QThread wrapper for backend operations"""
-    
-    # Signals for communication with GUI
-    packet_processed = pyqtSignal(str)
-    image_updated = pyqtSignal(str)
-    telemetry_updated = pyqtSignal()
-    error_occurred = pyqtSignal(str)
-    
-    def __init__(self):
-        super().__init__()
-        self.backend_worker = BackendWorkerMain()
-        self.backend_worker.moveToThread(self)
-        
-        # Connect backend signals to thread signals
-        self.backend_worker.packet_recieved.connect(self.packet_processed)
-        self.backend_worker.error_occured.connect(self.error_occurred)
-        
-    def run(self):
-        """Run the backend worker"""
-        self.backend_worker.run()
-    
-    # def stop_backend(self):
-    #     """Stop the backend worker"""
-    #     self.backend_worker.stop()
-
-
 class GroundStationMainWindow(QMainWindow):
     """Main application window for Ground Station"""
     
@@ -59,8 +32,12 @@ class GroundStationMainWindow(QMainWindow):
         self.data_api = DataAPI(Path("telemetry/telemetry.csv"))
         self.image_api = ImageAPI(Path("images"))
         
-        # Initialize backend thread
-        self.backend_thread = BackendThread()
+        # Initialize backend worker and thread
+        self.backend_thread = QThread()
+        self.backend_worker = BackendWorkerMain()
+        self.backend_worker.moveToThread(self.backend_thread)
+        
+        # Setup backend connections
         self.setup_backend_connections()
         
         # Create expanding graphs (13 graphs as requested)
@@ -73,6 +50,7 @@ class GroundStationMainWindow(QMainWindow):
         self.setup_timers()
         
         # Start backend thread
+        self.backend_thread.started.connect(self.backend_worker.run)
         self.backend_thread.start()
         
     def create_expanding_graphs(self):
@@ -253,11 +231,12 @@ class GroundStationMainWindow(QMainWindow):
     
     def setup_backend_connections(self):
         """Setup connections between backend signals and GUI slots"""
-        self.backend_thread.packet_processed.connect(self.on_packet_processed)
-        self.backend_thread.image_updated.connect(self.on_image_updated)
-        self.backend_thread.telemetry_updated.connect(self.on_telemetry_updated)
-        self.backend_thread.error_occurred.connect(self.on_error_occurred)
-        self.backend_thread.
+        # Connect backend worker signals directly to UI methods
+        self.backend_worker.error_occured.connect(self.show_error)
+        self.backend_worker.packet_recieved.connect(self.update_packet)
+        self.backend_worker.rec_telemetry_data.connect(self.update_telemetry)
+        self.backend_worker.rec_camera_data.connect(self.update_image)
+        self.backend_worker.ping_ack_ok.connect(self.on_ping_ack_received)
     
     def setup_timers(self):
         """Setup timers for auto-updating UI components"""
@@ -269,14 +248,14 @@ class GroundStationMainWindow(QMainWindow):
         # Timer for updating telemetry display
         self.telemetry_timer = QTimer()
         self.telemetry_timer.timeout.connect(self.update_telemetry_display)
-        self.telemetry_timer.start(5000)  # Update every 5 second
+        self.telemetry_timer.start(5000)  # Update every 5 seconds
     
     def update_image_display(self):
         """Update the image display with the latest image"""
         try:
             latest_image_path = self.image_api.get_latest_image_path()
             if latest_image_path and os.path.exists(latest_image_path):
-                pixmap = QPixmap(latest_image_path)
+                pixmap = QPixmap(str(latest_image_path))
                 if not pixmap.isNull():
                     # Scale the image to fit the label
                     scaled_pixmap = pixmap.scaled(
@@ -313,34 +292,42 @@ class GroundStationMainWindow(QMainWindow):
             print(f"Error updating telemetry display: {e}")
     
     # Backend signal handlers
-    def on_packet_processed(self, packet_info):
-        """Handle packet processed signal"""
-        print(f"Packet processed: {packet_info}")
-        # Force update of displays
-        self.update_telemetry_display()
-    
-    def on_image_updated(self, image_path):
-        """Handle image updated signal"""
-        print(f"Image updated: {image_path}")
-        self.update_image_display()
-    
-    def on_telemetry_updated(self):
-        """Handle telemetry updated signal"""
-        print("Telemetry data updated")
-        self.update_telemetry_display()
-    
-    def on_error_occurred(self, error_message):
+    def show_error(self, error_message):
         """Handle error occurred signal"""
         print(f"Backend error: {error_message}")
-        # You can add error display UI here
+        # You can add error display UI here (status bar, message box, etc.)
+    
+    def update_packet(self, packet_info, packet_data):
+        """Handle packet received signal"""
+        print(f"Packet received: {packet_info}")
+        # Force update of displays when packet is processed
+        self.update_telemetry_display()
+    
+    def update_telemetry(self, telemetry_info, telemetry_data):
+        """Handle telemetry data received signal"""
+        print(f"Telemetry data received: {telemetry_info}")
+        # Force immediate update of telemetry display
+        self.update_telemetry_display()
+    
+    def update_image(self, image_info, image_data):
+        """Handle camera data received signal"""
+        print(f"Camera data received: {image_info}")
+        # Force immediate update of image display
+        self.update_image_display()
+    
+    def on_ping_ack_received(self, message):
+        """Handle ping acknowledgment received"""
+        print(f"Ping ACK received: {message}")
+        # You can update UI status indicators here
     
     def closeEvent(self, event):
         """Handle application close event gracefully"""
         print("Closing Ground Station application...")
         
-        # Stop backend thread
-        self.backend_thread.stop()
-        # self.backend_thread.stop_backend()
+        # Stop backend worker
+        self.backend_worker.stop()
+        
+        # Stop and wait for backend thread
         self.backend_thread.quit()
         self.backend_thread.wait()
         
