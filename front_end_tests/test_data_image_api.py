@@ -68,12 +68,12 @@ class TestImageAPI:
     @pytest.fixture
     def populated_dir(self, tmp_path):
         """
-        Creates a folder with two image files and one text file.
+        Creates a folder with two .jpg image files and one text file.
         """
         dir_path = tmp_path / "images"
         dir_path.mkdir()
-        (dir_path / "20240701.jpeg").write_bytes(os.urandom(1024))
-        (dir_path / "20240702.jpeg").write_bytes(os.urandom(1024))
+        (dir_path / "20240701.jpg").write_bytes(os.urandom(1024))
+        (dir_path / "20240702.jpg").write_bytes(os.urandom(1024))
         (dir_path / "note.txt").write_text("not an image")
         return dir_path
 
@@ -102,8 +102,8 @@ class TestImageAPI:
         api = ImageAPI(image_dir=populated_dir)
         path = api.get_latest_image_path()
         assert path is not None
-        assert path.suffix == ".jpeg"
-        assert path.name == "20240702.jpeg"
+        assert path.suffix == ".jpg"
+        assert path.name == "20240702.jpg"
 
     def test_empty_image_folder(self, empty_dir):
         """
@@ -129,5 +129,5 @@ class TestImageAPI:
         api = ImageAPI(image_dir=populated_dir)
         path = api.get_latest_image_path()
         assert path is not None
-        assert path.name == "20240702.jpeg"
+        assert path.name == "20240702.jpg"
         assert path.exists()
