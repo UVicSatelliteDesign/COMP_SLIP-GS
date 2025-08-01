@@ -57,7 +57,7 @@ class GroundStationMainWindow(QMainWindow):
         """Create 13 expanding graphs for different telemetry data"""
         graphs = []
         
-        # Define graph configurations
+        # Define graph configuration
         graph_configs = [
             ("Field_0", "Field_1", "Time", "Temperature", "Temperature vs Time"),
             ("Field_0", "Field_2", "Time", "Pressure", "Pressure vs Time"),
