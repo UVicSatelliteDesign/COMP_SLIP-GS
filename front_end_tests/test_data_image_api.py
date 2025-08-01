@@ -91,38 +91,43 @@ class TestImageAPI:
         Checks if latest image (by name) is returned correctly.
         """
         api = ImageAPI(image_dir=populated_dir)
-        assert api.get_latest_image_name() == "20240702"
+        path = api.get_latest_image_path()
+        assert path is not None
+        assert path.stem == "20240702"
 
     def test_ignores_non_image_files(self, populated_dir):
         """
         Confirms that text files are ignored when finding the latest image.
         """
         api = ImageAPI(image_dir=populated_dir)
-        latest = api.get_latest_image_name()
-        assert latest.endswith("20240702")
+        path = api.get_latest_image_path()
+        assert path is not None
+        assert path.suffix == ".jpeg"
+        assert path.name == "20240702.jpeg"
 
     def test_empty_image_folder(self, empty_dir):
         """
         Confirms that None is returned when the folder has no images.
         """
         api = ImageAPI(image_dir=empty_dir)
-        assert api.get_latest_image_name() is None
+        assert api.get_latest_image_path() is None
 
     def test_folder_with_only_non_images(self, tmp_path):
         """
-        Confirms that non-image-only folder returns None.
+        Confirms that a folder with no images returns None.
         """
         dir_path = tmp_path / "nons"
         dir_path.mkdir()
         (dir_path / "hello.txt").write_text("text")
         api = ImageAPI(image_dir=dir_path)
-        assert api.get_latest_image_name() is None
+        assert api.get_latest_image_path() is None
 
     def test_get_latest_image_path(self, populated_dir):
         """
-        Checks that the correct image Path object is returned.
+        Checks that the correct Path object is returned and exists.
         """
         api = ImageAPI(image_dir=populated_dir)
         path = api.get_latest_image_path()
+        assert path is not None
         assert path.name == "20240702.jpeg"
         assert path.exists()
