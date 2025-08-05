@@ -33,6 +33,18 @@ SensorsData = namedtuple('SensorsData', [
     'altitude'
 ])
 
+# ==============================================
+# HELPER FUNCTIONS
+# ==============================================
+def unpack_floats(data, count, pos):
+    """Unpacks multiple big-endian floats from binary data"""
+    fmt = f'>{count}f'  # big-endian floats
+    values = struct.unpack_from(fmt, data, pos)
+    return values, pos + count*4
+
+# ==============================================
+# MAIN DATA HANDLER CLASS
+# ==============================================
 class DataHandler:
     """Main class for handling satellite data packets including both camera images and telemetry data"""
     
@@ -232,26 +244,20 @@ class DataHandler:
 
             offset = 0
             
-            # Helper function to unpack multiple floats
-            def unpack_flats(data, count, pos):
-                fmt = f'>{count}f'  # big-endian floats
-                values = struct.unpack_from(fmt, data, pos)
-                return values, pos + count*4
-            
             # Decode Battery 1 (5 floats)
-            bat1_vals, offset = unpack_flats(payload, 5, offset)
+            bat1_vals, offset = unpack_floats(payload, 5, offset)
             battery1 = BatteryData(*bat1_vals)
             
             # Decode Battery 2 (5 floats)
-            bat2_vals, offset = unpack_flats(payload, 5, offset)
+            bat2_vals, offset = unpack_floats(payload, 5, offset)
             battery2 = BatteryData(*bat2_vals)
             
             # Decode Battery 3 (5 floats)
-            bat3_vals, offset = unpack_flats(payload, 5, offset)
+            bat3_vals, offset = unpack_floats(payload, 5, offset)
             battery3 = BatteryData(*bat3_vals)
             
             # Decode Sensors (10 floats)
-            sensors_vals, offset = unpack_flats(payload, 10, offset)
+            sensors_vals, offset = unpack_floats(payload, 10, offset)
             sensors = SensorsData(*sensors_vals)
             
             # Decode GPS (11 bytes ASCII)
