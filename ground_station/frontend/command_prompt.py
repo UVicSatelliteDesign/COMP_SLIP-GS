@@ -1,8 +1,14 @@
 # command_prompt.py
 
 #imports first
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QComboBox, QPushButton, QLabel 
-from utils import is_valid_command, get_binary_from_dict, add_to_queue, show_acknowledgment
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QComboBox, QPushButton, QLabel
+from utils import (
+    is_valid_command,
+    get_binary_from_dict,
+    add_to_queue,
+    show_acknowledgment,
+    transfer_acknowledgment
+)
 
 class CommandPrompt(QWidget):
     def __init__(self):
@@ -44,6 +50,15 @@ class CommandPrompt(QWidget):
             bits = get_binary_from_dict(command)
             add_to_queue(bits)
             show_acknowledgment()
+
+            global transfer_acknowledgment
+            transfer_acknowledgment = True
+
             self.result_label.setText("Command processed and moved to queue.")
+        
         else:
+            # reset flag for an invalid command
+            global transfer_acknowledgment
+            transfer_acknowledgment = False
+
             self.result_label.setText("Invalid command.")
