@@ -37,6 +37,8 @@ class CommandPrompt(QWidget):
 
     def process_command(self):
         # Get the selected command
+        global transfer_acknowledgment
+         
         command = self.command_dropdown.currentText().strip()
 
         if is_valid_command(command):
