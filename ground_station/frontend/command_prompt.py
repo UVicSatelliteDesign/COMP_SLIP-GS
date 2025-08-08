@@ -38,7 +38,7 @@ class CommandPrompt(QWidget):
     def process_command(self):
         # Get the selected command
         global transfer_acknowledgment
-         
+
         command = self.command_dropdown.currentText().strip()
 
         if is_valid_command(command):
@@ -47,14 +47,12 @@ class CommandPrompt(QWidget):
             add_to_queue(bits)
             show_acknowledgment()
 
-            global transfer_acknowledgment
             transfer_acknowledgment = True
 
             self.result_label.setText("Command processed and moved to queue.")
         
         else:
             # reset flag for an invalid command
-            global transfer_acknowledgment
             transfer_acknowledgment = False
 
             self.result_label.setText("Invalid command.")
