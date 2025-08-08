@@ -10,6 +10,8 @@ from utils import (
     transfer_acknowledgment
 )
 
+
+
 class CommandPrompt(QWidget):
     def __init__(self):
         super().__init__()
