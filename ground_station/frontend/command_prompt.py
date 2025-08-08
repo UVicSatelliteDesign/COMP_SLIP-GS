@@ -44,6 +44,15 @@ class CommandPrompt(QWidget):
             bits = get_binary_from_dict(command)
             add_to_queue(bits)
             show_acknowledgment()
+
+            global transfer_acknowledgment
+            transfer_acknowledgment = True
+
             self.result_label.setText("Command processed and moved to queue.")
+        
         else:
+            # reset flag for an invalid command
+            global transfer_acknowledgment
+            transfer_acknowledgment = False
+
             self.result_label.setText("Invalid command.")
