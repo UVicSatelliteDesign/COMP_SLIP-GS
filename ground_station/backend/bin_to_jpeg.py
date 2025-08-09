@@ -64,8 +64,8 @@ class BinToJPEG:
                 print(f"Could not find JPG start marker in '{input_file}'")
                 return False
 
-            # Find the end of the JPG image
-            end = req_data.find(jpg_byte_end, start)
+            # Find the final instance of the end marker for the JPG image
+            end = req_data.rfind(jpg_byte_end)
             if end == -1:
                 print(f"Could not find JPG end marker in '{input_file}'")
                 return False
