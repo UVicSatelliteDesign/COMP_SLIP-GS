@@ -8,10 +8,17 @@ class BinToJPEG:
         
         :param image_dir: Directory where binary image files are stored (matches DataHandler)
         """
-        self.image_dir = image_dir
-        # Ensure the output directory exists
-        self.output_dir = os.path.join(os.getcwd(), "Images")
-        os.makedirs(self.output_dir, exist_ok=True)
+        try:
+            self.image_dir = image_dir
+            # Ensure the output directory exists
+            self.output_dir = os.path.join(os.getcwd(), "Images")
+            os.makedirs(self.output_dir, exist_ok=True)
+        except OSError as e:
+            print(f"Error creating output directory: {e}")
+            raise
+        except Exception as e:
+            print(f"Unexpected error in BinToJPEG initialization: {e}")
+            raise
 
     def extract_jpg_from_all_files(self):
         """
@@ -20,15 +27,21 @@ class BinToJPEG:
         try:
             # Get all .bin files from the image directory
             bin_files = glob.glob(os.path.join(self.image_dir, "*.bin"))
-            
+    
             if not bin_files:
                 print(f"No .bin files found in {self.image_dir}")
                 return
-            
+    
             for bin_file in bin_files:
-                print(f"Processing: {bin_file}")
-                self.extract_jpg_image(bin_file)
-                
+                try:  #Individual file processing exception handling
+                    print(f"Processing: {bin_file}")
+                    self.extract_jpg_image(bin_file)
+                except Exception as e: 
+                    print(f"Error processing file {bin_file}: {e}")
+                    continue
+            
+        except OSError as e:
+            print(f"Error accessing directory {self.image_dir}: {e}")
         except Exception as e:
             print(f"Error processing all files: {e}")
 
@@ -50,8 +63,15 @@ class BinToJPEG:
             jpg_image = bytearray()
 
             # Read the binary file
-            with open(input_file, 'rb') as f:
-                req_data = f.read()
+            try:
+                with open(input_file, 'rb') as f:
+                    req_data = f.read()
+            except IOError as e:
+                print(f"Error reading file '{input_file}': {e}")
+                return False 
+            except PermissionError as e:
+                print(f"Permission denied reading file '{input_file}': {e}")
+                return False 
 
             # Check if file is empty
             if len(req_data) == 0:
@@ -59,19 +79,23 @@ class BinToJPEG:
                 return False
 
             # Find the start of the JPG image
-            start = req_data.find(jpg_byte_start)
-            if start == -1:
-                print(f"Could not find JPG start marker in '{input_file}'")
-                return False
+            try:  # NEW
+                start = req_data.find(jpg_byte_start)
+                if start == -1:
+                    print(f"Could not find JPG start marker in '{input_file}'")
+                    return False
 
-            # Find the end of the JPG image
-            end = req_data.find(jpg_byte_end, start)
-            if end == -1:
-                print(f"Could not find JPG end marker in '{input_file}'")
-                return False
+                # Find the final instance of the end marker for the JPG image
+                end = req_data.rfind(jpg_byte_end)
+                if end == -1:
+                    print(f"Could not find JPG end marker in '{input_file}'")
+                    return False
 
-            end += len(jpg_byte_end)
-            jpg_image += req_data[start:end]
+                end += len(jpg_byte_end)
+                jpg_image += req_data[start:end]
+            except MemoryError as e:  # NEW
+                print(f"Memory error processing file '{input_file}': {e}")  # NEW
+                return False  # NEW
 
             print(f'Extracted JPG size: {end - start} bytes from {input_file}')
 
@@ -80,11 +104,21 @@ class BinToJPEG:
                 return False
 
             # Save the extracted JPG image to the 'Images' folder
-            base_filename = os.path.splitext(os.path.basename(input_file))[0]  # Remove .bin extension
-            output_file = os.path.join(self.output_dir, f'{base_filename}.jpg')
-            
-            with open(output_file, 'wb') as f:
-                f.write(jpg_image)
+            try:
+                base_filename = os.path.splitext(os.path.basename(input_file))[0]  # Remove .bin extension
+                output_file = os.path.join(self.output_dir, f'{base_filename}.jpg')
+                
+                with open(output_file, 'wb') as f:
+                    f.write(jpg_image)
+            except IOError as e:
+                print(f"Error writing output file '{output_file}': {e}")
+                return False 
+            except PermissionError as e: 
+                print(f"Permission denied writing to '{output_file}': {e}")
+                return False 
+            except OSError as e:
+                print(f"OS error writing file '{output_file}': {e}")
+                return False
 
             print(f"Image saved successfully at: {output_file}")
             return True
@@ -108,6 +142,12 @@ class BinToJPEG:
             latest_file = max(bin_files, key=os.path.getmtime)
             return latest_file
             
+        except OSError as e:  # more specific than generic Exception
+            print(f"Error accessing directory {self.image_dir}: {e}")
+            return None
+        except ValueError as e:
+            print(f"Error finding latest file: {e}")
+            return None
         except Exception as e:
             print(f"Error getting latest image: {e}")
             return None
@@ -116,13 +156,17 @@ class BinToJPEG:
         """
         Process the most recently created binary image file.
         """
-        latest_file = self.get_latest_image()
-        if latest_file:
-            print(f"Processing latest image: {latest_file}")
-            return self.extract_jpg_image(latest_file)
-        else:
-            print("No binary image files found to process.")
-            return False
+        try:  # wrapped entire method
+            latest_file = self.get_latest_image()
+            if latest_file:
+                print(f"Processing latest image: {latest_file}")
+                return self.extract_jpg_image(latest_file)
+            else:
+                print("No binary image files found to process.")
+                return False
+        except Exception as e:
+            print(f"Error processing latest image: {e}")
+            return False 
 
 
 # Test functionality with dummy data
