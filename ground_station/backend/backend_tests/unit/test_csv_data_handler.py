@@ -43,11 +43,9 @@ def data_handler():
     yield DataHandler(data_type="both", image_dir=image_dir, telemetry_dir=telemetry_dir)
     
     # Cleanup after tests
-    for root, _, files in os.walk(base_dir):
-        for f in files:
-            os.remove(os.path.join(root, f))
-    os.removedirs(image_dir)
-    os.removedirs(telemetry_dir)
+    import shutil
+    if os.path.exists(base_dir):
+        shutil.rmtree(base_dir)
 
 # ==========================
 # Helper Functions
@@ -198,3 +196,32 @@ def test_telemetry_csv_headers(data_handler):
     
     assert header == data_handler.global_headers
     assert len(header) == 26  # 25 numbers + 1 GPS string
+
+def test_multiple_telemetry_packets(data_handler):
+    """Test that multiple telemetry packets append to the same CSV"""
+    packet1 = TelemetryPacket(
+        payload_type=0x10,
+        batteries=[BatteryData(1.0, 2.0, 3.0, 4.0, 5.0)]*3,
+        sensors=SensorsData(*([1.0]*10)),
+        gps="FIRST"
+    )
+    
+    packet2 = TelemetryPacket(
+        payload_type=0x10,
+        batteries=[BatteryData(6.0, 7.0, 8.0, 9.0, 10.0)]*3,
+        sensors=SensorsData(*([2.0]*10)),
+        gps="SECOND"
+    )
+    
+    data_handler.process_packet(create_telemetry_payload(packet1))
+    data_handler.process_packet(create_telemetry_payload(packet2))
+    
+    telemetry_file = os.path.join(data_handler.telemetry_dir, "telemetry.csv")
+    with open(telemetry_file, newline='') as f:
+        rows = list(csv.reader(f))
+    
+    assert len(rows) == 3  # header + 2 data rows
+    assert rows[1][0] == '1.0'  # First packet, first value
+    assert rows[2][0] == '6.0'  # Second packet, first value
+    assert rows[1][25] == 'FIRST'
+    assert rows[2][25] == 'SECOND'
