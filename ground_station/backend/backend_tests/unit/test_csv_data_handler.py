@@ -6,7 +6,7 @@ import sys
 import struct
 
 # Make data_handler.py importable
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from data_handler import DataHandler, DATA_SAVED, TELEMETRY_SAVED, BatteryData, SensorsData
 
