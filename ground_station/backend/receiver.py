@@ -4,65 +4,46 @@ class ReceivedPacket():
     def __init__(self, data: bytes):
         '''
         Parses received binary data according to the following format:
-        - First 4 bits: payload_type
-        - Next bits (variable length): payload
-        - Next 17 bits: offset (only for specific types)
-        - Last 15 bits: sequence number
+        - First 8 bits (1 byte): payload_type
+        - Next bytes (variable length): payload
+    - Next 24 bits (3 bytes): offset (only for specific payload types)
+        - Last 16 bits (2 bytes): sequence number
+
+        Assumptions (can be adjusted): payload types 0b0100 through 0b0111 (4..7) include an offset.
         '''
-        self.payload_type = None
-        self.payload = None
-        self.offset = None
-        self.sequence_number = None
-        self.payload_length = 0
+        self.payload_type: int | None = None
+        self.payload: bytes | None = None
+        self.offset: int | None = None
+        self.sequence_number: int | None = None
+        self.payload_length: int = 0
 
         try:
-            # Total bits in data
-            total_bits = len(data) * 8
-            payload_bytes_length = 0
+            assert isinstance(data, (bytes, bytearray)), "data must be bytes-like"
+            length = len(data)
+            assert length >= 3, "Data too short (need at least type + seq)"
 
-            # Ensure data length is valid (at least 4 bits payload_type + 15 bits sequence number)
-            assert total_bits > 19, "Data too short for defined format"
+            self.payload_type = data[0]
 
-            # Extract payload_type (first 4 bits)
-            first_byte = data[0]
-            self.payload_type = first_byte >> 4
+            # Define which payload types contain an offset (adjust if spec changes)
+            types_with_offset = {0b0100, 0b0101, 0b0110, 0b0111}
 
-            if self.payload_type in [0b0100, 0b0101, 0b0110, 0b0111]:
-                # Calculate payload length in bits and bytes
-                payload_bits_length = total_bits - 36  # 4 bits type + 17 offset + 15 seq
-                payload_bytes_length = (payload_bits_length + 7) // 8
-
-                if payload_bytes_length > 0:
-                    payload_bits = int.from_bytes(data, 'big')
-                    payload_bits >>= 32  # Strip 17 offset + 15 seq
-                    payload_bits &= (1 << payload_bits_length) - 1
-                    self.payload = payload_bits.to_bytes(payload_bytes_length, 'big')
-                else:
-                    self.payload = b''
-
-                # Extract offset (17 bits before sequence number)
-                last_four_bytes = int.from_bytes(data[-4:], 'big')
-                self.offset = (last_four_bytes >> 15) & 0x1FFFF  # 17 bits
-
+            if self.payload_type in types_with_offset:
+                # Need at least 6 bytes: 1 (type) + 3 (offset) + 2 (seq)
+                assert length >= 6, "Data too short for packet with offset"
+                # Sequence number: last 2 bytes
+                self.sequence_number = int.from_bytes(data[-2:], 'big')
+                # Offset: 3 bytes before sequence
+                self.offset = int.from_bytes(data[-5:-2], 'big')  # 24 bits
+                # Payload: bytes between type and offset
+                self.payload = data[1:-5]
             else:
-                # Only 4 bits (type) and 15 bits (seq); the rest is payload
-                payload_bits_length = total_bits - 19  # 4 bits type + 15 bits seq
-                payload_bytes_length = (payload_bits_length + 7) // 8
+                # Sequence number: last 2 bytes
+                self.sequence_number = int.from_bytes(data[-2:], 'big')
+                self.offset = None
+                # Payload: bytes between type and sequence number
+                self.payload = data[1:-2]
 
-                if payload_bytes_length > 0:
-                    payload_bits = int.from_bytes(data, 'big')
-                    payload_bits >>= 15  # Strip 15-bit sequence number
-                    payload_bits &= (1 << payload_bits_length) - 1
-                    self.payload = payload_bits.to_bytes(payload_bytes_length, 'big')
-                else:
-                    self.payload = b''
-
-                self.offset = None  # Offset does not exist for these types
-
-            self.payload_length = payload_bytes_length
-            # Extract sequence_number (last 15 bits)
-            last_two_bytes = int.from_bytes(data[-2:], 'big')
-            self.sequence_number = last_two_bytes & 0x7FFF  # Mask 15 bits
+            self.payload_length = len(self.payload)
 
         except (AssertionError, ValueError, IndexError) as e:
             print(f"Initialization error: {e}")
@@ -70,8 +51,8 @@ class ReceivedPacket():
             self.payload = None
             self.offset = None
             self.sequence_number = None
-
-        # Should we append the payload_type, offset and sequence number directly to the TX_queue?
+            self.payload_length = 0
 
     def __repr__(self):
-        return (f"ReceivedPacket(payload_type={self.payload_type}, length={self.payload_length}, offset={self.offset}, sequence_number={self.sequence_number}")
+        return (f"ReceivedPacket(payload_type={self.payload_type}, length={self.payload_length}, "
+                f"offset={self.offset}, sequence_number={self.sequence_number})")
