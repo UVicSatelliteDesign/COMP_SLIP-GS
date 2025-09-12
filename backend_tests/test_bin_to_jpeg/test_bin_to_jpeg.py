@@ -15,7 +15,6 @@ OUTPUT_DIR = "Images"  # This will be overridden by the fixture
 
 class TestClass:
     """for testing the class bin to jpeg"""
-    
     def test_dummy_data(self, tmp_path):
         """Test BinToJPEG functionality with dummy data."""
         # Create test directory and dummy binary file
@@ -32,7 +31,20 @@ class TestClass:
         
         # Test the BinToJPEG class
         jpg_extractor = bin_to_jpeg.BinToJPEG(OUTPUT_DIR)
-        jpg_extractor.extract_jpg_image(test_file)
+        result = jpg_extractor.extract_jpg_image(test_file)
+        
+        assert result == True #JPG extraction should succeed
+        assert os.path.exists(os.path.join(tmp_path / "Images", "test_A.jpg")) #JPG file should be created
+        
+        # Assert that the output file has the correct content
+        expected_output = str(tmp_path / "Images" / "test_A.jpg")
+        with open(expected_output, 'rb') as f:
+            extracted_data = f.read()
+        
+        # Should contain the JPG markers and data we put in
+        assert extracted_data.startswith(b'\xff\xd8') #Output should start with JPG start marker
+        assert extracted_data.endswith(b'\xff\xd9') #Output should end with JPG end marker
+        assert len(extracted_data) > 0 #Output file should not be empty
         
         print("BinToJPEG test completed.")
         
