@@ -2,20 +2,22 @@ import bin_to_jpeg
 import os
 import filecmp
 import random
+from pathlib import Path
 
-IMAGE_DIR = "real_binary_images"
-REF_DIR = "reference_images"
-NOISY_DIR = "noisy_binary_images"
-OUTPUT_DIR = "Images"
-    
+# Get the directory where this test file is located
+TEST_DIR = Path(__file__).parent
+
+# Define paths relative to the test directory
+IMAGE_DIR = str(TEST_DIR / "real_binary_images")
+REF_DIR = str(TEST_DIR / "reference_images")
+NOISY_DIR = str(TEST_DIR / "noisy_binary_images")
+OUTPUT_DIR = "Images"  # This will be overridden by the fixture
 
 class TestClass:
-    """for testing the class bin to jpeg
-    """
-    def test_dummy_data(self):
-        """
-        Test BinToJPEG functionality with dummy data.
-        """        
+    """for testing the class bin to jpeg"""
+    
+    def test_dummy_data(self, tmp_path):
+        """Test BinToJPEG functionality with dummy data."""
         # Create test directory and dummy binary file
         os.makedirs(NOISY_DIR, exist_ok=True)
         
@@ -34,15 +36,15 @@ class TestClass:
         
         print("BinToJPEG test completed.")
         
-    def test_real_images(self):
+    def test_real_images(self, tmp_path):
         """takes jpeg images that have had their extension changed from .jpeg to .bin, 
         Checks if the resulting images are the same as the original images.
         """
         t = bin_to_jpeg.BinToJPEG(image_dir=IMAGE_DIR)
         t.extract_jpg_from_all_files()
-        assert self.compare_files(REF_DIR, OUTPUT_DIR)
+        assert self.compare_files(REF_DIR, str(tmp_path / "Images"))
         
-    def test_real_images_with_noise(self):
+    def test_real_images_with_noise(self, tmp_path):
         """takes jpeg images that have had their extension changed from .jpeg to .bin, 
         adds binary noise leading up to, and out of the jpeg data.
         Checks if the resulting images are the same as the original images.
@@ -50,9 +52,9 @@ class TestClass:
         self.noise_sandwich(IMAGE_DIR, NOISY_DIR)
         t = bin_to_jpeg.BinToJPEG(image_dir=NOISY_DIR)
         t.extract_jpg_from_all_files()
-        assert self.compare_files(REF_DIR, OUTPUT_DIR)
+        assert self.compare_files(REF_DIR, str(tmp_path / "Images"))
         
-    def test_pure_noise(self):
+    def test_pure_noise(self, tmp_path):
         KB_TESTED = 1000 # different lengths of random noise tested, up until KB_TESTED
         KB_MULTIPLIER = 1024 # multiplier for the number of bits in a kb
         FILENAME = "noise_test_number_"
@@ -69,19 +71,14 @@ class TestClass:
                 f.write(random_bytes(kb*KB_MULTIPLIER))
             jpg_extractor = bin_to_jpeg.BinToJPEG(NOISY_DIR)
             assert not jpg_extractor.extract_jpg_from_all_files()
+            # Clean up from the temporary directory (not the real Images folder)
             try:
-                os.remove(os.path.join("Images", "noise_test_number_" + str(kb) + ".jpg"))
+                temp_image_path = os.path.join(str(tmp_path / "Images"), "noise_test_number_" + str(kb) + ".jpg")
+                if os.path.exists(temp_image_path):
+                    os.remove(temp_image_path)
             except:
                 continue
                 
-            
-            
-   # def test_empty_file():
-   #     """tests an input bin file that is totally empty."""
-   #     self.clear_dir(NOISY_DIR)
-   #     output_path = os.path.join(NOISY_DIR, "empty")
-                
-        
     def compare_files(self, dir_ref, dir_output):
         """Compares all files with the same names between two directories,
         byte by byte.
