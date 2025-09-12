@@ -73,7 +73,8 @@ class DataHandler:
         global DATA_SAVED
 
         try:
-            assert len(payload) >= 128, "Invalid camera payload size"
+            assert len(payload) <= 128, "Invalid camera payload size"
+            assert len(payload) >=3, "Invalid camera Payload size too small"
 
             identifier = chr(payload[0])  # 1-byte ASCII
             image_data = payload[1:123]   # 122 bytes of data
