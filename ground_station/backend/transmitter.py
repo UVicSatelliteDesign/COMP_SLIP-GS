@@ -1,4 +1,4 @@
-from exceptions import IncorrectPayloadTypeException, IncorrectCommandTypeException
+from ground_station.backend.exceptions import IncorrectPayloadTypeException, IncorrectCommandTypeException
 
 PAYLOAD_TYPES = [
     ('Ping',                0b0000),
