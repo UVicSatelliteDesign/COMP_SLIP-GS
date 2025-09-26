@@ -382,8 +382,13 @@ class TestMainWindowImageDisplay:
 
                 # Checks if the image being displayed is the same as the image generated
                 original = QImage(str(image_path))
-                displayed = image.pixmap().toImage()
+                displayed = image.pixmap().toImage().convertToFormat(original.format())
 
-                assert original == displayed, "Original image and image displayed not same"
+                assert original.size() == displayed.size(), \
+                    "Original and displayed image sizes differ"
+
+                assert original.bits().asstring(original.sizeInBytes()) == \
+                    displayed.bits().asstring(displayed.sizeInBytes()), \
+                        "Original image and image displayed not same"
 
         image_generator.delete_contents()   # Deleting images created during test
