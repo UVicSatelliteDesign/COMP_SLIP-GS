@@ -37,22 +37,22 @@ class CommandPrompt(QWidget):
 
     def process_command(self):
         # Get the selected command
-        global transfer_acknowledgment
+        # global transfer_acknowledgment   - not needed anymore
 
         command = self.command_dropdown.currentText().strip()
 
-        if is_valid_command(command):
+        if utils.is_valid_command(command):
             # Convert and enqueue
-            bits = get_binary_from_dict(command)
-            add_to_queue(bits)
-            show_acknowledgment()
+            bits = utils.get_binary_from_dict(command)
+            utils.add_to_queue(bits)
+            utils.show_acknowledgment()
 
-            transfer_acknowledgment = True
+            utils.transfer_acknowledgment = True
 
             self.result_label.setText("Command processed and moved to queue.")
         
         else:
             # reset flag for an invalid command
-            transfer_acknowledgment = False
+            utils.transfer_acknowledgment = False
 
             self.result_label.setText("Invalid command.")
