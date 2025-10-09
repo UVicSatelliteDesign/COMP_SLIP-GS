@@ -44,6 +44,9 @@ RUN pip install --no-cache-dir -r requirements.txt && \
 # copy all files to container
 COPY . .
 
+# set python env path
+ENV PYTHONPATH=/app
+
 RUN chmod +x ./entrypoint.sh
 # run the tests with virtual display
 CMD ["./entrypoint.sh"]
