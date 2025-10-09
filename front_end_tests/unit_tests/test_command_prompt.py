@@ -279,13 +279,7 @@ class TestUtils:
         """
         Tests if `add_to_queue()` enqueues and `get_from_queue()` dequeues properly.
 
-<<<<<<< HEAD
-        :param reset_queue: Fixture to reset `queue` in `utils.py` before test.
-        :param reset_transfer_acknowledgement: Fixture to reset `transfer_acknowledgement` in 
-        `command_queue_state.py` before test.
-=======
         :param reset_queue: Fixture to reset the state of `backend/command_queue.py` after testing.
->>>>>>> 7300825 (refactor: deduplicate command_queue flags and tests)
         :param count: No. of commands to test with.
         """
         
