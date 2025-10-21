@@ -1,4 +1,3 @@
-import sys
 import pytest
 import string
 import random
@@ -12,8 +11,8 @@ from PyQt6.QtWidgets import QApplication, QLabel, QPushButton, QComboBox
 
 # Widgets, functions and variables to test
 from ground_station.frontend.command_prompt import CommandPrompt
-from ground_station.frontend.utils import add_to_queue, get_from_queue, valid_commands, queue
-from ground_station.frontend import utils
+from ground_station.frontend.utils import valid_commands
+from ground_station.backend import command_queue
 
 DEFAULT_MAX_NO_OF_COMMANDS = 7 # Default upper-limit for no. of commands used in testing
 
@@ -58,23 +57,13 @@ def widget(qapp: QApplication,
 @pytest.fixture
 def reset_queue():
     """
-    Removes all command codes from `queue` in `utils.py`.
+    Removes all command codes from `queue` in `backend/command_queue.py`,
+    and resets the transfer_acknowledgment flag to False.
     """
     
-    while not queue.empty():
-            queue.get()
-
-def update_transfer_acknowledgement():
-    utils.transfer_acknowledgment = False
-
-@pytest.fixture
-def reset_transfer_acknowledgement():
-    """
-    Resets `transfer_acknowledgment` to `False`.
-    """
-    update_transfer_acknowledgement()
-
-    
+    while not command_queue.command_queue.empty():
+        command_queue.command_queue.get()
+    command_queue.transfer_acknowledgment = False
 
 
 def generate_invalid_commands(n: int) -> list[str]:
@@ -132,16 +121,13 @@ class TestCommandPrompt:
     def test_drop_down_and_submit_button_functionality(self,
                                                        qapp: QApplication,
                                                        qtbot: QtBot,
-                                                       reset_queue,
-                                                       reset_transfer_acknowledgement):
+                                                       reset_queue):
         """
         Tests if all commands in the drop-down menu are processed correctly.
 
         :param qapp: Fixture providing `Qt` application context.
         :param qtbot: Fixture for widget interaction.
-        :param reset_queue: Fixture to reset `queue` in `utils.py` after testing.
-        :param reset_transfer_acknowledgement: Fixture to reset `transfer_acknowledgement` in `utils.py` 
-        after testing.
+        :param reset_queue: Fixture to reset the state of `backend/command_queue.py` after testing.
         """
         
         widget = CommandPrompt()
@@ -152,7 +138,7 @@ class TestCommandPrompt:
 
         # Selecting each command and submitting it
         for i in range(dropdown.count()):
-            update_transfer_acknowledgement()
+            command_queue.transfer_acknowledgment = False
             dropdown.setCurrentIndex(i)
 
             # Checks if correct command was selected
@@ -162,21 +148,21 @@ class TestCommandPrompt:
             commands_submitted.append(dropdown.itemText(i).strip())
 
             # Checks if transfer is acknowledged before submission
-            assert utils.transfer_acknowledgment == False, \
+            assert command_queue.transfer_acknowledgment == False, \
                 "Transfer to queue should not have been acknowledged yet"
 
             qtbot.mouseClick(widget.submit_button, Qt.MouseButton.LeftButton)
             
             # Checks if submit was acknowledged
-            assert utils.transfer_acknowledgment == True, "Transfer to queue should have been acknowledged"
+            assert command_queue.transfer_acknowledgment == True, "Transfer to queue should have been acknowledged"
         
         # Checks if all the commands were added to queue
-        assert queue.qsize() == dropdown.count(), \
-            f"Expected {queue.qsize()} commands, got {dropdown.count()}"
+        assert command_queue.command_queue.qsize() == dropdown.count(), \
+            f"Expected {command_queue.command_queue.qsize()} commands, got {dropdown.count()}"
         
         # Checks if all commands were enqueued in the correct order
         for command in commands_submitted:
-            dequeued_command_code = queue.get()
+            dequeued_command_code = command_queue.get_from_queue()
 
             assert dequeued_command_code == valid_commands[command], \
                 f"Expected {dequeued_command_code}, got {valid_commands[command]}"
@@ -187,7 +173,6 @@ class TestCommandPrompt:
                                                       widget: CommandPrompt,
                                                       monkeypatch: pytest.MonkeyPatch,
                                                       reset_queue,
-                                                      reset_transfer_acknowledgement,
                                                       count: int):
         """
         Tests if `process_command()` processes invalid commands correctly.
@@ -195,9 +180,7 @@ class TestCommandPrompt:
         :param qapp: Fixture providing `Qt` application context.
         :param widget: Fixture providing an instance of `CommandPrompt`.
         :param monkeypatch: Fixture to patch `currentText()` of `widget.command_dropdown`.
-        :param reset_queue: Fixture to reset `queue` in `utils.py` after testing.
-        :param reset_transfer_acknowledgement: Fixture to reset `transfer_acknowledgement` in `utils.py` 
-        after testing.
+        :param reset_queue: Fixture to reset the state of `backend/command_queue.py` after testing.
         :param count: No. of invalid commands to test with.
         """
         
@@ -220,8 +203,8 @@ class TestCommandPrompt:
             if dummy_command not in valid_commands:
                 widget.process_command()
 
-                assert queue.empty(), "Command should not have been uploaded to queue"
-                assert utils.transfer_acknowledgment == False, "Transfer should not have been acknowledged"
+                assert command_queue.command_queue.empty(), "Command should not have been uploaded to queue"
+                assert command_queue.transfer_acknowledgment == False, "Transfer should not have been acknowledged"
                 assert widget.result_label.text() == "Invalid command.", \
                     f"Expected \"Invalid command.\" got \"{widget.result_label.text()}\""
             else:
@@ -233,7 +216,6 @@ class TestCommandPrompt:
                                                   widget: CommandPrompt,
                                                   monkeypatch: pytest.MonkeyPatch,
                                                   reset_queue,
-                                                  reset_transfer_acknowledgement,
                                                   count: int):
         """
         Tests if `process_command()` processes a mix of valid and invalid commands correctly.
@@ -241,9 +223,7 @@ class TestCommandPrompt:
         :param qapp: Fixture providing `Qt` application context.
         :param widget: Fixture providing an instance of `CommandPrompt`.
         :param monkeypatch: Fixture to patch `currentText()` of `widget.command_dropdown`.
-        :param reset_queue: Fixture to reset `queue` in `utils.py` after testing.
-        :param reset_transfer_acknowledgement: Fixture to reset `transfer_acknowledgement` in `utils.py` 
-        after testing.
+        :param reset_queue: Fixture to reset the state of `backend/command_queue.py` after testing.
         :param count: No. of commands to test with.
         """
         
@@ -279,14 +259,14 @@ class TestCommandPrompt:
                 continue
         
         # Checks if ONLY all the valid commands were inserted into queue
-        assert queue.qsize() == len(expected_commands_codes_queue), \
-            f"Expected {len(expected_commands_codes_queue)} commands, got {queue.qsize()}"
+        assert command_queue.command_queue.qsize() == len(expected_commands_codes_queue), \
+            f"Expected {len(expected_commands_codes_queue)} commands, got {command_queue.command_queue.qsize()}"
         
         # Checks if all the valid commands were inserted in the correct order
         for command in expected_commands_codes_queue:
-            assert not queue.empty(), "Queue empty. It should have more commands"
+            assert not command_queue.command_queue.empty(), "Queue empty. It should have more commands"
 
-            command_extracted = queue.get()
+            command_extracted = command_queue.get_from_queue()
 
             assert command == command_extracted, f"Expected {command}, got {command_extracted}"
 
@@ -295,14 +275,11 @@ class TestCommandPrompt:
 class TestUtils:
     def test_enqueue_dequeue(self,
                              reset_queue,
-                             reset_transfer_acknowledgement,
                              count: int):
         """
         Tests if `add_to_queue()` enqueues and `get_from_queue()` dequeues properly.
 
-        :param reset_queue: Fixture to reset `queue` in `utils.py` after test.
-        :param reset_transfer_acknowledgement: Fixture to reset `transfer_acknowledgement` in `utils.py` 
-        after test.
+        :param reset_queue: Fixture to reset the state of `backend/command_queue.py` after testing.
         :param count: No. of commands to test with.
         """
         
@@ -310,10 +287,10 @@ class TestUtils:
 
         # Enqueueing commands
         for command in sample_commands_codes:
-            add_to_queue(command)
+            command_queue.add_to_queue(command)
 
         # Checking if commands are dequeued in correct order
         for command in sample_commands_codes:
-            dequeued_command = get_from_queue()
+            dequeued_command = command_queue.get_from_queue()
 
             assert dequeued_command == command, f"Expected {command}, got {dequeued_command}"
