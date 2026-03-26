@@ -4,12 +4,6 @@ import struct
 from collections import namedtuple
 
 # ==============================================
-# GLOBAL VARIABLES
-# ==============================================
-DATA_SAVED = False       # Tracks whether camera data was successfully saved
-TELEMETRY_SAVED = False  # Tracks whether telemetry data was successfully saved
-
-# ==============================================
 # TELEMETRY DATA STRUCTURES
 # ==============================================
 BatteryData = namedtuple('BatteryData', [
@@ -63,6 +57,8 @@ class DataHandler:
         """
         # Initialize instance variables
         self.image_dir = image_dir         # Directory for image storage
+        self.data_saved = False             # Manage whether the data passing through has been saved or not
+        self.telemetry_saved = False        # Manage whether the telemetry data passing through has been saved or not
         self.telemetry_dir = telemetry_dir  # Directory for telemetry data
         self.recent_files = {}             # Dictionary to track most recent files by identifier
         self.global_headers = []           # List to store CSV column headers for telemetry data
@@ -82,6 +78,9 @@ class DataHandler:
         Args:
             packet (bytes): Raw binary packet data received from satellite
         """
+        self.data_saved = False  # reset for this packet
+        self.telemetry_saved = False
+        
         try:
             # Development-time validation checks
             assert isinstance(packet, bytes), "Packet must be in bytes format"
@@ -111,7 +110,6 @@ class DataHandler:
         Args:
             payload (bytes): Camera-specific payload data
         """
-        global DATA_SAVED
         
         try:
             # Validate payload meets minimum size requirements (1B ID + 122B data + 2B seq + 3B offset)
@@ -137,7 +135,7 @@ class DataHandler:
 
             # Update tracking information
             self.recent_files[seq_num] = file_path
-            DATA_SAVED = True
+            self.data_saved = True
             # Update class sequence number to last received + 1
             DataHandler.sequence_number = (seq_num + 1) & 0xFFFF  # Ensure 16-bit wrap-around
 
@@ -153,7 +151,6 @@ class DataHandler:
         Args:
             payload (bytes): Telemetry-specific payload data
         """
-        global TELEMETRY_SAVED
         
         try:
             # Validate payload contains data
@@ -198,7 +195,7 @@ class DataHandler:
                 print(f"Failed to write telemetry: {e}")
                 return
 
-            TELEMETRY_SAVED = True
+            self.telemetry_saved = True
 
         except AssertionError as e:
             print(f"Invalid telemetry: {e}")
