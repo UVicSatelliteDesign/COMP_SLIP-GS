@@ -4,6 +4,12 @@ import struct
 from collections import namedtuple
 
 # ==============================================
+# GLOBAL FLAGS
+# ==============================================
+DATA_SAVED = False
+TELEMETRY_SAVED = False
+
+# ==============================================
 # TELEMETRY DATA STRUCTURES
 # ==============================================
 BatteryData = namedtuple('BatteryData', [
@@ -57,8 +63,6 @@ class DataHandler:
         """
         # Initialize instance variables
         self.image_dir = image_dir         # Directory for image storage
-        self.data_saved = False             # Manage whether the data passing through has been saved or not
-        self.telemetry_saved = False        # Manage whether the telemetry data passing through has been saved or not
         self.telemetry_dir = telemetry_dir  # Directory for telemetry data
         self.recent_files = {}             # Dictionary to track most recent files by identifier
         self.global_headers = []           # List to store CSV column headers for telemetry data
@@ -78,8 +82,11 @@ class DataHandler:
         Args:
             packet (bytes): Raw binary packet data received from satellite
         """
-        self.data_saved = False  # reset for this packet
-        self.telemetry_saved = False
+        global DATA_SAVED, TELEMETRY_SAVED
+
+        # Reset flags for this packet
+        DATA_SAVED = False
+        TELEMETRY_SAVED = False
         
         try:
             # Development-time validation checks
@@ -135,7 +142,8 @@ class DataHandler:
 
             # Update tracking information
             self.recent_files[seq_num] = file_path
-            self.data_saved = True
+            global DATA_SAVED
+            DATA_SAVED = True
             # Update class sequence number to last received + 1
             DataHandler.sequence_number = (seq_num + 1) & 0xFFFF  # Ensure 16-bit wrap-around
 
@@ -195,7 +203,8 @@ class DataHandler:
                 print(f"Failed to write telemetry: {e}")
                 return
 
-            self.telemetry_saved = True
+            global TELEMETRY_SAVED
+            TELEMETRY_SAVED = True
 
         except AssertionError as e:
             print(f"Invalid telemetry: {e}")
