@@ -219,6 +219,11 @@ class TestMainWindowImageDisplay:
         :param count: No. of images to use for test.
         """
 
+        # Skip tests if count is less than or equal to 1, as it will cause the tests to run with 0
+        # images
+        if(count <= 1):
+            pytest.skip("Not enough images to test mixed behaviour")
+
         for i in range(1, count):
             image_path = image_generator.generate_valid_image(f"valid{i}.jpg")
 
@@ -236,8 +241,9 @@ class TestMainWindowImageDisplay:
             original = QImage(str(image_path))
             displayed = image.pixmap().toImage()
 
-            assert original == displayed, "Original image and image displayed not same"
-        
+            assert original.size() == displayed.size(), "Original size and displayed image sizes differ"
+            assert original.bits().asstring(original.sizeInBytes()) == displayed.bits().asstring(displayed.sizeInBytes()), "Original image and displayed image not same"
+            
         image_generator.delete_contents()   # Deleting images created during test
     
 
