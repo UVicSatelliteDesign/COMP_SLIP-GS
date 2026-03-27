@@ -20,7 +20,7 @@ class TestClass:
         # Create test directory and dummy binary file
         os.makedirs(NOISY_DIR, exist_ok=True)
         
-        # Create a dummy binary file with fake JPG markers for testing
+        # Create a dummy bin file with fake JPG markers for testing
         dummy_jpg_data = b'\xff\xd8' + b'\x00' * 100 + b'\xff\xd9'  # Fake JPG data
         test_file = os.path.join(NOISY_DIR, "test_A.bin")
         
