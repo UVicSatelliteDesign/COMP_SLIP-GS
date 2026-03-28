@@ -10,3 +10,8 @@ env
 # python bytecode files
 __pycache__
 *.pyc
+
+# Git
+.git
+.gitignore
+.gitattributes

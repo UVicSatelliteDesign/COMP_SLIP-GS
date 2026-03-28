@@ -1,16 +1,14 @@
 import socket
 import os
-from queue import Queue, Empty
 from PyQt6.QtCore import QObject, pyqtSignal
-import asyncio
 
 
 from ground_station.backend.transmitter import GroundStationTransmitter, PAYLOAD_TYPE_DICT
 from ground_station.backend.receiver import ReceivedPacket
 from ground_station.backend.Binary_CSV_Handler import DataHandler
 from ground_station.backend.bin_to_jpeg import BinToJPEG
-from ground_station.backend.exceptions import MaxTransmissionReachedException, IncorrectCommandTypeException, IncorrectPayloadTypeException
-from ground_station.backend.command_queue_state import command_queue
+from ground_station.backend.exceptions import IncorrectCommandTypeException, IncorrectPayloadTypeException
+from ground_station.backend.command_queue import command_queue
 
 # TODO: socket connection for establishing connection to GNU.
 # TODO: Able to change GNU configs through main file.
