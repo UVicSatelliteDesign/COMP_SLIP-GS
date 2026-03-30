@@ -63,9 +63,14 @@ class TestClass:
         """
         self.noise_sandwich(IMAGE_DIR, NOISY_DIR)
         output_dir = str(tmp_path / "Images")  # Use tmp_path for output
-        t = bin_to_jpeg.BinToJPEG(image_dir=NOISY_DIR, image_output=output_dir)  # Specify output directory
+        t = bin_to_jpeg.BinToJPEG(image_dir=NOISY_DIR, image_output=output_dir)
         t.extract_jpg_from_all_files()
-        assert self.compare_files(REF_DIR, output_dir)  # Compare against the correct output path
+    
+        # Ensure REF_DIR exists and has files to compare
+        if not os.path.exists(REF_DIR) or not os.listdir(REF_DIR):
+            raise FileNotFoundError(f"Reference directory {REF_DIR} is empty or does not exist")
+    
+        assert self.compare_files(REF_DIR, output_dir)
         
     def test_pure_noise(self, tmp_path):
         KB_TESTED = 1000 # different lengths of random noise tested, up until KB_TESTED
