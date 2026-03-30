@@ -62,14 +62,16 @@ class TestClass:
         Checks if the resulting images are the same as the original images.
         """
         self.noise_sandwich(IMAGE_DIR, NOISY_DIR)
-        output_dir = str(tmp_path / "Images")  # Use tmp_path for output
+        output_dir = str(tmp_path / "Images")
+        os.makedirs(output_dir, exist_ok=True)  # Ensure output directory exists
+    
         t = bin_to_jpeg.BinToJPEG(image_dir=NOISY_DIR, image_output=output_dir)
         t.extract_jpg_from_all_files()
-    
+
         # Ensure REF_DIR exists and has files to compare
         if not os.path.exists(REF_DIR) or not os.listdir(REF_DIR):
             raise FileNotFoundError(f"Reference directory {REF_DIR} is empty or does not exist")
-    
+
         assert self.compare_files(REF_DIR, output_dir)
         
     def test_pure_noise(self, tmp_path):
