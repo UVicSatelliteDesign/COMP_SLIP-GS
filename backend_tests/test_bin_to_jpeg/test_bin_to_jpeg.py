@@ -62,9 +62,10 @@ class TestClass:
         Checks if the resulting images are the same as the original images.
         """
         self.noise_sandwich(IMAGE_DIR, NOISY_DIR)
-        t = bin_to_jpeg.BinToJPEG(image_dir=NOISY_DIR)
+        output_dir = str(tmp_path / "Images")  # Use tmp_path for output
+        t = bin_to_jpeg.BinToJPEG(image_dir=NOISY_DIR, image_output=output_dir)  # Specify output directory
         t.extract_jpg_from_all_files()
-        assert self.compare_files(REF_DIR, str(tmp_path / "Images"))
+        assert self.compare_files(REF_DIR, output_dir)  # Compare against the correct output path
         
     def test_pure_noise(self, tmp_path):
         KB_TESTED = 1000 # different lengths of random noise tested, up until KB_TESTED
