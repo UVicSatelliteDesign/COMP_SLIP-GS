@@ -32,14 +32,18 @@ class BinToJPEG:
             if not bin_files:
                 print(f"No .bin files found in {self.image_dir}")
                 return
+            success = False
     
             for bin_file in bin_files:
                 try:  #Individual file processing exception handling
                     print(f"Processing: {bin_file}")
                     self.extract_jpg_image(bin_file)
+                    if result:
+                        success = True
                 except Exception as e: 
                     print(f"Error processing file {bin_file}: {e}")
                     continue
+            return success
             
         except OSError as e:
             print(f"Error accessing directory {self.image_dir}: {e}")
@@ -90,7 +94,7 @@ class BinToJPEG:
                     return False
 
                 # Find the final instance of the end marker for the JPG image
-                end = req_data.rfind(jpg_byte_end)
+                end = req_data.find(jpg_byte_end)
                 if end == -1:
                     print(f"Could not find JPG end marker in '{input_file}'")
                     return False
