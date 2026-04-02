@@ -101,6 +101,17 @@ class BinToJPEG:
 
                 end += len(jpg_byte_end)
                 jpg_image += req_data[start:end]
+
+                if len(jpg_data) < 100:
+                    print(f"Rejected small false-positive JPEG in '{input_file}'")
+                    return False
+                
+                if b'\xff\xdb' not in jpg_data and b'\xff\xc0' not in jpg_data:
+                    print(f"Rejected invalid JPEG structure in '{input_file}'")
+                    return False
+                
+                jpg_image += jpg_data
+                
             except MemoryError as e:  # NEW
                 print(f"Memory error processing file '{input_file}': {e}")  # NEW
                 return False  # NEW
