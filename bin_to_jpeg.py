@@ -37,7 +37,7 @@ class BinToJPEG:
             for bin_file in bin_files:
                 try:  #Individual file processing exception handling
                     print(f"Processing: {bin_file}")
-                    self.extract_jpg_image(bin_file)
+                    result = self.extract_jpg_image(bin_file)
                     if result:
                         success = True
                 except Exception as e: 

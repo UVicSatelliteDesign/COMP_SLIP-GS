@@ -134,7 +134,13 @@ class TestClass:
             dir_ref (binary file): the source directory containing only .bin files
             dir_output (binary file): the output directory for the new noisy files.
         """
-
+        # CLEAR OUTPUT DIRECTORY FIRST
+        if os.path.exists(dir_output):
+            for f in os.listdir(dir_output):
+                os.remove(os.path.join(dir_output, f))
+        else:
+            os.makedirs(dir_output)
+            
         # Define how many random bytes to add at the start and end of each file
         LOWER = 1
         UPPER = 1000
