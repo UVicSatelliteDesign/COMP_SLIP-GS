@@ -13,9 +13,9 @@ def mock_output_directory(tmp_path, monkeypatch):
     """Redirect BinToJPEG output into pytest's tmp_path/Images instead of the real project folder."""
     import bin_to_jpeg
 
-    def mock_init(self, image_dir="images"):
+    def mock_init(self, image_dir="images", image_output=None):
         self.image_dir = image_dir
-        self.output_dir = str(tmp_path / "Images")
+        self.output_dir = image_output or str(tmp_path / "Images")
         os.makedirs(self.output_dir, exist_ok=True)
 
     monkeypatch.setattr(bin_to_jpeg.BinToJPEG, "__init__", mock_init)
