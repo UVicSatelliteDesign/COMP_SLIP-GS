@@ -1,10 +1,9 @@
 import os
 import glob
-from PIL import Image
-import io
+
 
 class BinToJPEG:
-    def __init__(self, image_dir="images"):
+    def __init__(self, image_dir="images", image_output=None):
         """
         Initialize BinToJPEG with the image directory path.
         
@@ -13,7 +12,7 @@ class BinToJPEG:
         try:
             self.image_dir = image_dir
             # Ensure the output directory exists
-            self.output_dir = os.path.join(os.getcwd(), "Images")
+            self.output_dir = image_output or os.path.join(os.getcwd(), "Images")
             os.makedirs(self.output_dir, exist_ok=True)
         except OSError as e:
             print(f"Error creating output directory: {e}")
@@ -92,33 +91,20 @@ class BinToJPEG:
             try:  # NEW
                 start = req_data.find(jpg_byte_start)
                 if start == -1:
-                    print(f"Could not find JPG start marker in '{input_file}'")
                     return False
 
-                valid_jpg = None
-
-                search_pos = start
-                while True:
-                    end = req_data.find(jpg_byte_end, search_pos)
-                    if end == -1:
-                        break
-
-                    end += len(jpg_byte_end)
-                    candidate = req_data[start:end]
-
-                    try:
-                        img = Image.open(io.BytesIO(candidate))
-                        img.load()
-                        valid_jpg = candidate
-                        break  # stop at first valid JPEG
-                    except Exception:
-                        search_pos = end  # keep searching
-
-                if valid_jpg is None:
-                    print(f"Rejected invalid JPEG in '{input_file}'")
+                end = req_data.find(jpg_byte_end, start)
+                if end == -1 or end < start:
                     return False
 
-                jpg_image = valid_jpg
+                end += len(jpg_byte_end)
+                jpg_data = req_data[start:end]
+
+                # Prevent random noise false positives
+                if len(jpg_data) < 100:
+                    return False
+
+                jpg_image = jpg_data
 
             except MemoryError as e:  # NEW
                 print(f"Memory error processing file '{input_file}': {e}")  # NEW
