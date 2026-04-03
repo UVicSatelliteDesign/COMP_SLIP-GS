@@ -33,7 +33,7 @@ class BinToJPEG:
     
             if not bin_files:
                 print(f"No .bin files found in {self.image_dir}")
-                return
+                return False
             success = False
     
             for bin_file in bin_files:
@@ -104,17 +104,14 @@ class BinToJPEG:
                 end += len(jpg_byte_end)
                 jpg_data = req_data[start:end]
 
-                if len(jpg_data) < 200:
-                    jpg_image = jpg_data
-                else:
-                    try:
-                        img = Image.open(io.BytesIO(jpg_data))
-                        img.verify()  # Verify that it's a valid image
-                    except Exception:
-                        print(f"Rejected invalid JPEG in '{input_file}'")
-                        return False
+                try:
+                    img = Image.open(io.BytesIO(jpg_data))
+                    img.verify()  # Verify that it's a valid image
+                except Exception:
+                    print(f"Rejected invalid JPEG in '{input_file}'")
+                    return False
                     
-                    jpg_image = jpg_data
+                jpg_image = jpg_data
 
             except MemoryError as e:  # NEW
                 print(f"Memory error processing file '{input_file}': {e}")  # NEW
