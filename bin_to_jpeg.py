@@ -106,7 +106,7 @@ class BinToJPEG:
 
                 try:
                     img = Image.open(io.BytesIO(jpg_data))
-                    img.verify()  # Verify that it's a valid image
+                    img.load()
                 except Exception:
                     print(f"Rejected invalid JPEG in '{input_file}'")
                     return False
