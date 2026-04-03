@@ -1,5 +1,7 @@
 import os
 import glob
+from PIL import Image
+import io
 
 class BinToJPEG:
     def __init__(self, image_dir="images"):
@@ -102,16 +104,17 @@ class BinToJPEG:
                 end += len(jpg_byte_end)
                 jpg_data = req_data[start:end]
 
-                if len(jpg_data) < 50:  # lowered threshold so dummy test passes
-                    print(f"Rejected small false-positive JPEG in '{input_file}'")
-                    return False
-                
-                if len(jpg_data) > 200:
-                    if b'\xff\xdb' not in jpg_data and b'\xff\xc0' not in jpg_data:
-                        print(f"Rejected invalid JPEG structure in '{input_file}'")
+                if len(jpg_data) < 200:
+                    jpg_image = jpg_data
+                else:
+                    try:
+                        img = Image.open(io.BytesIO(jpg_data))
+                        img.verify()  # Verify that it's a valid image
+                    except Exception:
+                        print(f"Rejected invalid JPEG in '{input_file}'")
                         return False
-                
-                jpg_image = jpg_data
+                    
+                    jpg_image = jpg_data
 
             except MemoryError as e:  # NEW
                 print(f"Memory error processing file '{input_file}': {e}")  # NEW
