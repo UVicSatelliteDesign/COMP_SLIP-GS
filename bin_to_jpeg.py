@@ -95,23 +95,30 @@ class BinToJPEG:
                     print(f"Could not find JPG start marker in '{input_file}'")
                     return False
 
-                # Find the final instance of the end marker for the JPG image
-                end = req_data.rfind(jpg_byte_end)
-                if end == -1 or end < start:
-                    print(f"Could not find JPG end marker in '{input_file}'")
-                    return False
+                valid_jpg = None
 
-                end += len(jpg_byte_end)
-                jpg_data = req_data[start:end]
+                search_pos = start
+                while True:
+                    end = req_data.find(jpg_byte_end, search_pos)
+                    if end == -1:
+                        break
 
-                try:
-                    img = Image.open(io.BytesIO(jpg_data))
-                    img.load()
-                except Exception:
+                    end += len(jpg_byte_end)
+                    candidate = req_data[start:end]
+
+                    try:
+                        img = Image.open(io.BytesIO(candidate))
+                        img.load()
+                        valid_jpg = candidate
+                        break  # stop at first valid JPEG
+                    except Exception:
+                        search_pos = end  # keep searching
+
+                if valid_jpg is None:
                     print(f"Rejected invalid JPEG in '{input_file}'")
                     return False
-                    
-                jpg_image = jpg_data
+
+                jpg_image = valid_jpg
 
             except MemoryError as e:  # NEW
                 print(f"Memory error processing file '{input_file}': {e}")  # NEW
