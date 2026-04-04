@@ -107,25 +107,22 @@ class BinToJPEG:
                     candidate = req_data[start:end]
 
                     # Reject tiny candidates
-                    if len(candidate) < 100:
+                    if len(candidate) < 200:
                         search_pos += 1
                         continue
 
-                    # Validate ONLY reasonably sized ones
-                    if len(candidate) > 500:
-                        try:
-                            img = Image.open(io.BytesIO(candidate))
-                            img.verify()
-                            img = Image.open(io.BytesIO(candidate))
-                            img.load()
-                            jpg_image = candidate
-                            break
-                        except Exception:
-                            search_pos += 1
-                    else:
-                        # Allow small dummy JPEG (for test_dummy_data)
+                    # Reject obvious random noise
+                    if len(set(candidate[:100])) > 90:
+                        search_pos += 1
+                        continue
+
+                    try:
+                        img = Image.open(io.BytesIO(candidate))
+                        img.verify()
                         jpg_image = candidate
                         break
+                    except Exception:                            
+                        search_pos += 1
 
                 if jpg_image is None:
                     return False
