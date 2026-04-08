@@ -108,12 +108,12 @@ class BinToJPEG:
 
                     # Reject tiny candidates
                     if len(candidate) < 200:
-                        search_pos += 1
+                        search_pos = end
                         continue
 
                     # Reject obvious random noise
                     if len(set(candidate[:100])) > 90:
-                        search_pos += 1
+                        search_pos = end
                         continue
 
                     try:
@@ -122,7 +122,7 @@ class BinToJPEG:
                         jpg_image = candidate
                         break
                     except Exception:                            
-                        search_pos += 1
+                        search_pos = end
 
                 if jpg_image is None:
                     return False
@@ -203,4 +203,4 @@ class BinToJPEG:
                 return False
         except Exception as e:
             print(f"Error processing latest image: {e}")
-            return False 
+            return False
