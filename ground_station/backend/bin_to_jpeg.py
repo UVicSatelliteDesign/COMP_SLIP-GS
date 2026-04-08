@@ -38,7 +38,7 @@ class BinToJPEG:
 
             valid_count = 0
             for bin_file in bin_files:
-                try:  #Individual file processing exception handling
+                try:
                     print(f"Processing: {bin_file}")
                     result = self.extract_jpg_image(bin_file)
                     if result:
@@ -46,12 +46,15 @@ class BinToJPEG:
                 except Exception as e: 
                     print(f"Error processing file {bin_file}: {e}")
                     continue
+
             return valid_count > 0
             
         except OSError as e:
             print(f"Error accessing directory {self.image_dir}: {e}")
+            return False
         except Exception as e:
             print(f"Error processing all files: {e}")
+            return False
 
     def extract_jpg_image(self, input_file):
         """Extracts a JPG image from a binary file and saves it to the self.output directory.
@@ -71,7 +74,7 @@ class BinToJPEG:
             # JPG start and end markers
             jpg_byte_start = b'\xff\xd8'
             jpg_byte_end = b'\xff\xd9'
-            jpg_image = bytearray()
+            jpg_image = None
 
             # Read the binary file
             try:
@@ -90,13 +93,12 @@ class BinToJPEG:
                 return False
 
             # Find the start of the JPG image
-            try:  # NEW
+            try:
                 start = req_data.find(jpg_byte_start)
                 if start == -1:
                     return False
 
                 search_pos = start + len(jpg_byte_start)
-                jpg_image = None
 
                 while True:
                     end = req_data.find(jpg_byte_end, search_pos)
@@ -106,36 +108,29 @@ class BinToJPEG:
                     end += len(jpg_byte_end)
                     candidate = req_data[start:end]
 
-                    # Reject tiny candidates (likely false positives)
+                    # Reject tiny candidates
                     if len(candidate) < 100:
                         search_pos = end
                         continue
 
-                    # Try to verify with PIL - this is the most reliable check
+                    # STRICT validation: only accept real JPEGs
                     try:
                         img = Image.open(io.BytesIO(candidate))
                         img.verify()
                         jpg_image = candidate
                         break
                     except Exception:
-                        # PIL verification failed, but check if it has valid JPEG structure
-                        # Accept it if it's at least a reasonable size and has proper markers
-                        if len(candidate) >= 100 and candidate.startswith(jpg_byte_start) and candidate.endswith(jpg_byte_end):
-                            # Additional sanity check: should have some variation in the data
-                            # (pure nulls or single repeated byte = likely not real image)
-                            if len(set(candidate)) > 2:
-                                jpg_image = candidate
-                                break
                         search_pos = end
+                        continue
 
                 if jpg_image is None:
                     return False
 
-            except MemoryError as e:  # NEW
-                print(f"Memory error processing file '{input_file}': {e}")  # NEW
-                return False  # NEW
+            except MemoryError as e:
+                print(f"Memory error processing file '{input_file}': {e}")
+                return False
 
-            print(f'Extracted JPG size: {end - start} bytes from {input_file}')
+            print(f'Extracted JPG size: {len(jpg_image)} bytes from {input_file}')
 
             if len(jpg_image) == 0:
                 print(f"Extracted image size is zero from '{input_file}'")
@@ -143,7 +138,7 @@ class BinToJPEG:
 
             # Save the extracted JPG image to the 'Images' folder
             try:
-                base_filename = os.path.splitext(os.path.basename(input_file))[0]  # Remove .bin extension
+                base_filename = os.path.splitext(os.path.basename(input_file))[0]
                 output_file = os.path.join(self.output_dir, f'{base_filename}.jpg')
                 
                 with open(output_file, 'wb') as f:
@@ -170,7 +165,7 @@ class BinToJPEG:
         Get the most recently created binary image file.
         
         Returns:
-            bool: Path to the most recent .bin file, or None if no files exist.
+            Path to the most recent .bin file, or None if no files exist.
         """
         try:
             bin_files = glob.glob(os.path.join(self.image_dir, "*.bin"))
@@ -181,7 +176,7 @@ class BinToJPEG:
             latest_file = max(bin_files, key=os.path.getmtime)
             return latest_file
             
-        except OSError as e:  # more specific than generic Exception
+        except OSError as e:
             print(f"Error accessing directory {self.image_dir}: {e}")
             return None
         except ValueError as e:
@@ -197,7 +192,7 @@ class BinToJPEG:
         Returns:
             bool: returns False if there was an error, otherwise True.
         """
-        try:  # wrapped entire method
+        try:
             latest_file = self.get_latest_image()
             if latest_file:
                 print(f"Processing latest image: {latest_file}")
