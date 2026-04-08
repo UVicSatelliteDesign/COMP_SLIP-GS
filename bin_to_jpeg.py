@@ -106,22 +106,26 @@ class BinToJPEG:
                     end += len(jpg_byte_end)
                     candidate = req_data[start:end]
 
-                    # Reject tiny candidates
-                    if len(candidate) < 200:
+                    # Reject tiny candidates (likely false positives)
+                    if len(candidate) < 100:
                         search_pos = end
                         continue
 
-                    # Reject obvious random noise
-                    if len(set(candidate[:100])) > 90:
-                        search_pos = end
-                        continue
-
+                    # Try to verify with PIL - this is the most reliable check
                     try:
                         img = Image.open(io.BytesIO(candidate))
                         img.verify()
                         jpg_image = candidate
                         break
-                    except Exception:                            
+                    except Exception:
+                        # PIL verification failed, but check if it has valid JPEG structure
+                        # Accept it if it's at least a reasonable size and has proper markers
+                        if len(candidate) >= 100 and candidate.startswith(jpg_byte_start) and candidate.endswith(jpg_byte_end):
+                            # Additional sanity check: should have some variation in the data
+                            # (pure nulls or single repeated byte = likely not real image)
+                            if len(set(candidate)) > 2:
+                                jpg_image = candidate
+                                break
                         search_pos = end
 
                 if jpg_image is None:
