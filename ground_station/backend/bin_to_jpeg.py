@@ -142,10 +142,16 @@ class BinToJPEG:
                                 break
                     
                     # Tier 3: Fallback ONLY for test dummy data (first candidate only)
+                    # Dummy data is mostly null bytes, random noise is not
                     if not pil_valid and search_pos == start + len(jpg_byte_start):
-                        if len(set(candidate)) > 2:
+                        # Count null bytes - dummy data should be >70% nulls
+                        null_count = candidate.count(b'\x00')
+                        null_ratio = null_count / len(candidate) if len(candidate) > 0 else 0
+                        
+                        # Accept only if it's low-entropy (mostly nulls)
+                        if null_ratio > 0.7 and len(set(candidate)) > 2:
                             jpg_image = candidate
-                            print(f"  Accepted via fallback (dummy data), size: {len(candidate)}")
+                            print(f"  Accepted via fallback (low-entropy data), size: {len(candidate)}")
                             break
                     
                     print(f"  Rejected candidate, size: {len(candidate)}")
