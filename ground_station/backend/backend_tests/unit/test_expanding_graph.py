@@ -8,7 +8,7 @@ matplotlib.use('Agg')
 
 @pytest.fixture
 def setup_test_environment(tmp_path):
-    """Setup test environment with sample data files"""
+    """Setup test environment with sample data"""
     telemetry_dir = tmp_path / "telemetry"
     database_dir = tmp_path / "database"
     telemetry_dir.mkdir()
