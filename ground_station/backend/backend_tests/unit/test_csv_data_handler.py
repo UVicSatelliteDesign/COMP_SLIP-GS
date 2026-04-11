@@ -8,8 +8,13 @@ import struct
 # Make data_handler.py importable
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from data_handler import DataHandler, DATA_SAVED, TELEMETRY_SAVED, BatteryData, SensorsData
-
+from ground_station.backend.Binary_CSV_Handler import (
+    DataHandler,
+    DATA_SAVED,
+    TELEMETRY_SAVED,
+    BatteryData,
+    SensorsData,
+)
 # ============================================================
 # Test Data Structures
 # ============================================================
