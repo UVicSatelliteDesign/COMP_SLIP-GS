@@ -1,4 +1,4 @@
-from exceptions import MaxTransmissionReachedException, IncorrectPayloadTypeException, IncorrectCommandTypeException
+from ground_station.backend.exceptions import IncorrectPayloadTypeException, IncorrectCommandTypeException
 
 PAYLOAD_TYPES = [
     ('Ping',                0b0000),
@@ -103,12 +103,12 @@ class GroundStationTransmitter():
     # Check the commands queue in the main file for any incoming commands, if yes then send that command data type.
     def command(self, command):
         # command should be found in the PAYLOAD_TYPE_DICT
-        if command not in PAYLOAD_TYPE_DICT.keys():
+        if command not in PAYLOAD_TYPE_DICT.values():
             raise IncorrectCommandTypeException(f'Invalid command type: {command}')
         
         self.sendonly_command = True
         packet = bytearray()
-        packet.append(PAYLOAD_TYPE_DICT[command])
+        packet.append(command)
 
         command_packet = self.construct_packet(packet)
         return command_packet
