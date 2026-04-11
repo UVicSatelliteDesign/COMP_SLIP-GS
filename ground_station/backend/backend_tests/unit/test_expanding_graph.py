@@ -3,7 +3,7 @@ import pytest
 import pandas as pd
 from unittest.mock import patch
 import matplotlib
-from ground_station.backend.Binary_CSV_Handler import DataHandler 
+from ground_station.backend.graph_plot import ExpandingGraph 
 matplotlib.use('Agg')
 
 @pytest.fixture
