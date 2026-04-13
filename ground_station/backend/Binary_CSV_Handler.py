@@ -1,6 +1,7 @@
 import os
 import csv
 import struct
+import sys
 from collections import namedtuple
 
 # ============================================================
@@ -84,8 +85,9 @@ class DataHandler:
         global DATA_SAVED, TELEMETRY_SAVED
 
         # Reset flags for each packet
-        DATA_SAVED = False
-        TELEMETRY_SAVED = False
+        module = sys.modules[__name__]
+        module.DATA_SAVED = False
+        module.TELEMETRY_SAVED = False
 
         if not isinstance(packet_data, (bytes, bytearray)) or len(packet_data) < 1:
             print("Invalid packet: too short")
@@ -113,7 +115,7 @@ class DataHandler:
         if len(packet_data) < expected_payload_size:
             # The unit test expects this exact message
             print(f"Expected 101 bytes, got {len(packet_data)}")
-            TELEMETRY_SAVED = False
+            sys.modules[__name__].TELEMETRY_SAVED = False
             return
 
         try:
@@ -137,14 +139,14 @@ class DataHandler:
 
             # Write telemetry to CSV
             self._write_telemetry_csv(batteries, sensors, gps)
-            TELEMETRY_SAVED = True
+            sys.modules[__name__].TELEMETRY_SAVED = True
 
         except struct.error as e:
             print(f"Telemetry decoding failed: {e}")
-            TELEMETRY_SAVED = False
+            sys.modules[__name__].TELEMETRY_SAVED = False
         except Exception as e:
             print(f"Telemetry parsing failed: {e}")
-            TELEMETRY_SAVED = False
+            sys.modules[__name__].TELEMETRY_SAVED = False
 
     # ========================================================
     # CAMERA PROCESSING
@@ -160,7 +162,7 @@ class DataHandler:
                 f"Invalid camera data: Camera payload requires at least "
                 f"{expected_payload_size} bytes, got {len(packet_data)}"
             )
-            DATA_SAVED = False
+            sys.modules[__name__].DATA_SAVED = True
             return
 
         try:
@@ -194,7 +196,7 @@ class DataHandler:
             with open(output_file, 'wb') as f:
                 f.write(buffer)
 
-            DATA_SAVED = True
+            sys.modules[__name__].DATA_SAVED = True
 
             # Cleanup after final packet
             if payload_type == 0x12:
@@ -202,7 +204,7 @@ class DataHandler:
 
         except Exception as e:
             print(f"Camera processing error: {e}")
-            DATA_SAVED = False
+            sys.modules[__name__].DATA_SAVED = False
 
     # ========================================================
     # CSV WRITER
