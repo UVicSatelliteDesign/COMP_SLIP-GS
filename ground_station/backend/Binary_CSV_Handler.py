@@ -1,14 +1,31 @@
 import os
 import csv
 import struct
-import sys
 from collections import namedtuple
 
 # ============================================================
 # GLOBAL FLAGS (Used by Unit Tests)
 # ============================================================
-DATA_SAVED = False
-TELEMETRY_SAVED = False
+class _MutableFlag:
+    """A mutable boolean-like object for shared global state."""
+    def __init__(self, value=False):
+        self.value = value
+
+    def set(self, value: bool):
+        self.value = bool(value)
+
+    def __bool__(self):
+        return self.value
+
+    def __repr__(self):
+        return str(self.value)
+
+    def __eq__(self, other):
+        return self.value == bool(other)
+
+
+DATA_SAVED = _MutableFlag(False)
+TELEMETRY_SAVED = _MutableFlag(False)
 
 # ============================================================
 # TELEMETRY DATA STRUCTURES
@@ -85,9 +102,8 @@ class DataHandler:
         global DATA_SAVED, TELEMETRY_SAVED
 
         # Reset flags for each packet
-        module = sys.modules[__name__]
-        module.DATA_SAVED = False
-        module.TELEMETRY_SAVED = False
+        DATA_SAVED.set(False)
+        TELEMETRY_SAVED.set(False)
 
         if not isinstance(packet_data, (bytes, bytearray)) or len(packet_data) < 1:
             print("Invalid packet: too short")
@@ -115,7 +131,7 @@ class DataHandler:
         if len(packet_data) < expected_payload_size:
             # The unit test expects this exact message
             print(f"Expected 101 bytes, got {len(packet_data)}")
-            sys.modules[__name__].TELEMETRY_SAVED = False
+            TELEMETRY_SAVED.set(False)
             return
 
         try:
@@ -139,14 +155,14 @@ class DataHandler:
 
             # Write telemetry to CSV
             self._write_telemetry_csv(batteries, sensors, gps)
-            sys.modules[__name__].TELEMETRY_SAVED = True
+            TELEMETRY_SAVED.set(True)
 
         except struct.error as e:
             print(f"Telemetry decoding failed: {e}")
-            sys.modules[__name__].TELEMETRY_SAVED = False
+            TELEMETRY_SAVED.set(False)
         except Exception as e:
             print(f"Telemetry parsing failed: {e}")
-            sys.modules[__name__].TELEMETRY_SAVED = False
+            TELEMETRY_SAVED.set(False)
 
     # ========================================================
     # CAMERA PROCESSING
@@ -162,7 +178,7 @@ class DataHandler:
                 f"Invalid camera data: Camera payload requires at least "
                 f"{expected_payload_size} bytes, got {len(packet_data)}"
             )
-            sys.modules[__name__].DATA_SAVED = True
+            DATA_SAVED.set(True)
             return
 
         try:
@@ -196,7 +212,7 @@ class DataHandler:
             with open(output_file, 'wb') as f:
                 f.write(buffer)
 
-            sys.modules[__name__].DATA_SAVED = True
+            DATA_SAVED.set(True)
 
             # Cleanup after final packet
             if payload_type == 0x12:
@@ -204,7 +220,7 @@ class DataHandler:
 
         except Exception as e:
             print(f"Camera processing error: {e}")
-            sys.modules[__name__].DATA_SAVED = False
+            DATA_SAVED.set(False)
 
     # ========================================================
     # CSV WRITER
