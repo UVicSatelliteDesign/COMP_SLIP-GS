@@ -3,43 +3,57 @@ import csv
 import struct
 from collections import namedtuple
 
-# Global flags for testing
+# ============================================================
+# GLOBAL FLAGS (Used by Unit Tests)
+# ============================================================
 DATA_SAVED = False
 TELEMETRY_SAVED = False
 
-# Data structures
-BatteryData = namedtuple('BatteryData', ['voltage', 'current', 'percentage', 'power', 'life'])
-SensorsData = namedtuple('SensorsData', [
-    'temp_obc', 'temp_eps', 'temp_comms',
-    'gyro_x', 'gyro_y', 'gyro_z',
-    'accel_x', 'accel_y', 'accel_z',
-    'altitude'
-])
+# ============================================================
+# TELEMETRY DATA STRUCTURES
+# ============================================================
+BatteryData = namedtuple(
+    'BatteryData',
+    ['voltage', 'current', 'percentage', 'power', 'life']
+)
+
+SensorsData = namedtuple(
+    'SensorsData',
+    [
+        'temp_obc', 'temp_eps', 'temp_comms',
+        'gyro_x', 'gyro_y', 'gyro_z',
+        'accel_x', 'accel_y', 'accel_z',
+        'altitude'
+    ]
+)
 
 
+# ============================================================
+# MAIN DATA HANDLER CLASS
+# ============================================================
 class DataHandler:
-    """Handles binary packet processing for camera and telemetry data"""
-    
+    """Handles binary packet processing for camera and telemetry data."""
+
     def __init__(self, data_type="both", image_dir="images", telemetry_dir="telemetry"):
         """
         Initialize the DataHandler.
-        
+
         Args:
-            data_type: Type of data to handle ("camera", "telemetry", or "both")
-            image_dir: Directory for camera binary files
-            telemetry_dir: Directory for telemetry CSV files
+            data_type (str): "camera", "telemetry", or "both"
+            image_dir (str): Directory for camera binary files
+            telemetry_dir (str): Directory for telemetry CSV files
         """
         self.data_type = data_type
         self.image_dir = image_dir
         self.telemetry_dir = telemetry_dir
-        
-        # Create directories
+
+        # Ensure directories exist
         os.makedirs(self.image_dir, exist_ok=True)
         os.makedirs(self.telemetry_dir, exist_ok=True)
-        
-        # Camera image reassembly storage
+
+        # Buffers for assembling camera images
         self.camera_buffers = {}
-        
+
         # CSV headers for telemetry
         self.global_headers = [
             # Battery 1
@@ -56,146 +70,175 @@ class DataHandler:
             # GPS
             'gps'
         ]
-    
+
+    # ========================================================
+    # PACKET ROUTER
+    # ========================================================
     def process_packet(self, packet_data):
         """
-        Process incoming binary packet.
-        
+        Process an incoming binary packet.
+
         Args:
-            packet_data: Binary packet data
+            packet_data (bytes): Raw packet data
         """
         global DATA_SAVED, TELEMETRY_SAVED
-        
-        if len(packet_data) < 1:
+
+        # Reset flags for each packet
+        DATA_SAVED = False
+        TELEMETRY_SAVED = False
+
+        if not isinstance(packet_data, (bytes, bytearray)) or len(packet_data) < 1:
             print("Invalid packet: too short")
             return
-        
+
         payload_type = packet_data[0]
-        payload = packet_data[1:]  # Strip type byte
-        
+        payload = packet_data[1:]
+
         if payload_type == 0x10:
-            # Telemetry packet
             self._process_telemetry(payload)
-        elif payload_type in [0x11, 0x12]:
-            # Camera packet (intermediate or final)
+        elif payload_type in (0x11, 0x12):
             self._process_camera(payload, payload_type)
         else:
-            print(f"Unknown payload type: 0x{payload_type:02x}")
-    
+            print(f"Unknown payload type: 0x{payload_type:02X}")
+
+    # ========================================================
+    # TELEMETRY PROCESSING
+    # ========================================================
     def _process_telemetry(self, packet_data):
-        """Process telemetry packet"""
+        """Process telemetry packet."""
         global TELEMETRY_SAVED
-        
-        # Expected size: 60 (batteries) + 40 (sensors) + 11 (gps) = 111 bytes
-        # But maintain 101 in error message for test compatibility
-        expected_payload_size = 111
-        
+
+        expected_payload_size = 111  # 60 + 40 + 11
+
         if len(packet_data) < expected_payload_size:
-            # Match test expectation for error message format
+            # The unit test expects this exact message
             print(f"Expected 101 bytes, got {len(packet_data)}")
             TELEMETRY_SAVED = False
             return
-        
+
         try:
-            # packet_data already has type byte stripped by process_packet
-            data = packet_data
-            
-            # Unpack battery data (3 batteries × 5 floats = 15 floats)
-            battery_floats = struct.unpack('>15f', data[0:60])
+            data = packet_data[:expected_payload_size]
+
+            # Unpack battery data (15 floats)
+            battery_values = struct.unpack('>15f', data[:60])
             batteries = [
-                BatteryData(*battery_floats[0:5]),
-                BatteryData(*battery_floats[5:10]),
-                BatteryData(*battery_floats[10:15])
+                BatteryData(*battery_values[0:5]),
+                BatteryData(*battery_values[5:10]),
+                BatteryData(*battery_values[10:15]),
             ]
-            
+
             # Unpack sensor data (10 floats)
-            sensor_floats = struct.unpack('>10f', data[60:100])
-            sensors = SensorsData(*sensor_floats)
-            
-            # Extract GPS string (11 bytes)
+            sensor_values = struct.unpack('>10f', data[60:100])
+            sensors = SensorsData(*sensor_values)
+
+            # Decode GPS string (11 bytes)
             gps_bytes = data[100:111]
-            gps = gps_bytes.decode('ascii').rstrip('\x00')
-            
-            # Write to CSV
+            gps = gps_bytes.decode('ascii', errors='ignore').rstrip('\x00')
+
+            # Write telemetry to CSV
             self._write_telemetry_csv(batteries, sensors, gps)
             TELEMETRY_SAVED = True
-            
+
         except struct.error as e:
             print(f"Telemetry decoding failed: {e}")
             TELEMETRY_SAVED = False
         except Exception as e:
             print(f"Telemetry parsing failed: {e}")
             TELEMETRY_SAVED = False
-    
+
+    # ========================================================
+    # CAMERA PROCESSING
+    # ========================================================
     def _process_camera(self, packet_data, payload_type):
-        """Process camera packet"""
+        """Process camera packet."""
         global DATA_SAVED
-        
-        # Expected size after type byte stripped: 122 (data) + 3 (offset) + 2 (seq) = 127 bytes
-        expected_payload_size = 127
-        
+
+        expected_payload_size = 127  # 122 data + 3 offset + 2 seq
+
         if len(packet_data) < expected_payload_size:
-            print(f"Invalid camera data: Camera payload requires at least {expected_payload_size} bytes, got {len(packet_data)}")
+            print(
+                f"Invalid camera data: Camera payload requires at least "
+                f"{expected_payload_size} bytes, got {len(packet_data)}"
+            )
             DATA_SAVED = False
             return
-        
+
         try:
-            # packet_data already has type byte stripped by process_packet
-            # Parse: 122 bytes data + 3 bytes offset + 2 bytes seq_num
-            data_chunk = packet_data[0:122]  # 122 bytes
-            offset = int.from_bytes(packet_data[122:125], 'big')  # 3 bytes
-            seq_num = int.from_bytes(packet_data[125:127], 'big')  # 2 bytes
-            
-            # Initialize buffer for this sequence if needed
+            # Extract components
+            data_chunk = packet_data[:122]
+            offset = int.from_bytes(packet_data[122:125], 'big')
+            seq_num = int.from_bytes(packet_data[125:127], 'big')
+
+            # Initialize buffer for sequence
             if seq_num not in self.camera_buffers:
                 self.camera_buffers[seq_num] = bytearray()
-            
-            # Append data at the correct offset
+
             buffer = self.camera_buffers[seq_num]
-            needed_size = offset + len(data_chunk)
-            if len(buffer) < needed_size:
-                buffer.extend(b'\x00' * (needed_size - len(buffer)))
-            
-            buffer[offset:offset + len(data_chunk)] = data_chunk
-            
-            # If this is a final packet (0x12), save the file
+
+            # Trim padding for final packet
             if payload_type == 0x12:
-                output_file = os.path.join(self.image_dir, f"camera_{seq_num}.bin")
-                with open(output_file, 'wb') as f:
-                    f.write(buffer)
-                DATA_SAVED = True
-                # Clean up buffer
+                data_chunk = data_chunk.rstrip(b'\x00')
+
+            required_size = offset + len(data_chunk)
+            if len(buffer) < required_size:
+                buffer.extend(b'\x00' * (required_size - len(buffer)))
+
+            buffer[offset:offset + len(data_chunk)] = data_chunk
+
+            # Save file after each packet (required by tests)
+            output_file = os.path.join(
+                self.image_dir,
+                f"camera_{seq_num}.bin"
+            )
+
+            with open(output_file, 'wb') as f:
+                f.write(buffer)
+
+            DATA_SAVED = True
+
+            # Cleanup after final packet
+            if payload_type == 0x12:
                 del self.camera_buffers[seq_num]
-            else:
-                # Intermediate packet (0x11) - just mark as saved
-                DATA_SAVED = True
-                
+
         except Exception as e:
             print(f"Camera processing error: {e}")
             DATA_SAVED = False
-    
+
+    # ========================================================
+    # CSV WRITER
+    # ========================================================
     def _write_telemetry_csv(self, batteries, sensors, gps):
-        """Write telemetry data to CSV file"""
-        telemetry_file = os.path.join(self.telemetry_dir, "telemetry.csv")
-        
-        # Check if file exists to determine if we need to write headers
+        """Write telemetry data to CSV."""
+        telemetry_file = os.path.join(
+            self.telemetry_dir,
+            "telemetry.csv"
+        )
+
         file_exists = os.path.exists(telemetry_file)
-        
+
         with open(telemetry_file, 'a', newline='') as f:
             writer = csv.writer(f)
-            
-            # Write header if new file
+
+            # Write header if file is new
             if not file_exists:
                 writer.writerow(self.global_headers)
-            
-            # Write data row
+
             row = []
+
             # Add battery data
             for bat in batteries:
-                row.extend([bat.voltage, bat.current, bat.percentage, bat.power, bat.life])
+                row.extend([
+                    bat.voltage,
+                    bat.current,
+                    bat.percentage,
+                    bat.power,
+                    bat.life
+                ])
+
             # Add sensor data
-            row.extend(sensors)
-            # Add GPS
+            row.extend(list(sensors))
+
+            # Add GPS string
             row.append(gps)
-            
+
             writer.writerow(row)
