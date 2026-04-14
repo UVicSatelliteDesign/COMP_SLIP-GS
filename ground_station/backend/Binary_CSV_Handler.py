@@ -3,7 +3,7 @@ import csv
 import struct
 from collections import namedtuple
 
-# Global flags for testing - these MUST be simple booleans for `is True` to work
+# Global flags for testing
 DATA_SAVED = False
 TELEMETRY_SAVED = False
 
@@ -64,10 +64,6 @@ class DataHandler:
         Args:
             packet_data: Binary packet data
         """
-        # Import the module to update its namespace globals
-        import sys
-        thismodule = sys.modules[__name__]
-        
         if len(packet_data) < 1:
             print("Invalid packet: too short")
             return
@@ -77,22 +73,24 @@ class DataHandler:
         
         if payload_type == 0x10:
             # Telemetry packet
-            self._process_telemetry(payload, thismodule)
+            self._process_telemetry(payload)
         elif payload_type in [0x11, 0x12]:
             # Camera packet (intermediate or final)
-            self._process_camera(payload, payload_type, thismodule)
+            self._process_camera(payload, payload_type)
         else:
             print(f"Unknown payload type: 0x{payload_type:02x}")
     
-    def _process_telemetry(self, packet_data, module):
+    def _process_telemetry(self, packet_data):
         """Process telemetry packet"""
+        global TELEMETRY_SAVED
+        
         # Expected size: 60 (batteries) + 40 (sensors) + 11 (gps) = 111 bytes
         expected_payload_size = 111
         
         if len(packet_data) < expected_payload_size:
             # Match test expectation for error message format
             print(f"Expected 101 bytes, got {len(packet_data)}")
-            module.TELEMETRY_SAVED = False
+            TELEMETRY_SAVED = False
             return
         
         try:
@@ -117,23 +115,25 @@ class DataHandler:
             
             # Write to CSV
             self._write_telemetry_csv(batteries, sensors, gps)
-            module.TELEMETRY_SAVED = True
+            TELEMETRY_SAVED = True
             
         except struct.error as e:
             print(f"Telemetry decoding failed: {e}")
-            module.TELEMETRY_SAVED = False
+            TELEMETRY_SAVED = False
         except Exception as e:
             print(f"Telemetry parsing failed: {e}")
-            module.TELEMETRY_SAVED = False
+            TELEMETRY_SAVED = False
     
-    def _process_camera(self, packet_data, payload_type, module):
+    def _process_camera(self, packet_data, payload_type):
         """Process camera packet"""
+        global DATA_SAVED
+        
         # Expected size after type byte stripped: 122 (data) + 3 (offset) + 2 (seq) = 127 bytes
         expected_payload_size = 127
         
         if len(packet_data) < expected_payload_size:
             print(f"Invalid camera data: Camera payload requires at least {expected_payload_size} bytes, got {len(packet_data)}")
-            module.DATA_SAVED = False
+            DATA_SAVED = False
             return
         
         try:
@@ -142,6 +142,10 @@ class DataHandler:
             data_chunk = packet_data[0:122]  # 122 bytes
             offset = int.from_bytes(packet_data[122:125], 'big')  # 3 bytes
             seq_num = int.from_bytes(packet_data[125:127], 'big')  # 2 bytes
+            
+            # For final packets, strip null padding from data
+            if payload_type == 0x12:
+                data_chunk = data_chunk.rstrip(b'\x00')
             
             # Initialize buffer for this sequence if needed
             if seq_num not in self.camera_buffers:
@@ -155,21 +159,19 @@ class DataHandler:
             
             buffer[offset:offset + len(data_chunk)] = data_chunk
             
-            # If this is a final packet (0x12), save the file
+            # Save file after EVERY packet (tests expect this)
+            output_file = os.path.join(self.image_dir, f"camera_{seq_num}.bin")
+            with open(output_file, 'wb') as f:
+                f.write(buffer)
+            DATA_SAVED = True
+            
+            # Clean up buffer after final packet
             if payload_type == 0x12:
-                output_file = os.path.join(self.image_dir, f"camera_{seq_num}.bin")
-                with open(output_file, 'wb') as f:
-                    f.write(buffer)
-                module.DATA_SAVED = True
-                # Clean up buffer
                 del self.camera_buffers[seq_num]
-            else:
-                # Intermediate packet (0x11) - just mark as saved
-                module.DATA_SAVED = True
                 
         except Exception as e:
             print(f"Camera processing error: {e}")
-            module.DATA_SAVED = False
+            DATA_SAVED = False
     
     def _write_telemetry_csv(self, batteries, sensors, gps):
         """Write telemetry data to CSV file"""
