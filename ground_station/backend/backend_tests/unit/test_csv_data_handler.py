@@ -8,13 +8,14 @@ import struct
 # Make data_handler.py importable
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from ground_station.backend.Binary_CSV_Handler import (
+import Binary_CSV_Handler
+
+from Binary_CSV_Handler import (
     DataHandler,
-    DATA_SAVED,
-    TELEMETRY_SAVED,
     BatteryData,
     SensorsData,
 )
+
 # ============================================================
 # Test Data Structures
 # ============================================================
@@ -40,6 +41,8 @@ class TelemetryPacket:
 @pytest.fixture
 def data_handler():
     # Use temporary directories for testing
+    Binary_CSV_Handler.DATA_SAVED = False
+    Binary_CSV_Handler.TELEMETRY_SAVED = False
     base_dir = "test_database"
     image_dir = os.path.join(base_dir, "bin_images")
     telemetry_dir = os.path.join(base_dir, "telemetry")
@@ -127,7 +130,7 @@ def test_telemetry_storage(data_handler):
     # Check GPS
     assert rows[1][25] == "GPGGA,123"
     
-    assert TELEMETRY_SAVED is True
+    assert Binary_CSV_Handler.TELEMETRY_SAVED is True
 
 def test_camera_storage(data_handler):
     """Original camera test should still pass"""
@@ -150,7 +153,7 @@ def test_camera_storage(data_handler):
     assert len(content) == 2*122 + 24
     assert content.startswith(b'\x01'*122)
     assert content.endswith(b'\x03'*24)
-    assert DATA_SAVED is True
+    assert Binary_CSV_Handler.DATA_SAVED is True
 
 def test_mixed_packets(data_handler):
     """Test handling both telemetry and camera packets together"""
@@ -172,8 +175,8 @@ def test_mixed_packets(data_handler):
     # Verify both were saved
     assert os.path.exists(os.path.join(data_handler.telemetry_dir, "telemetry.csv"))
     assert os.path.exists(os.path.join(data_handler.image_dir, "camera_42.bin"))
-    assert TELEMETRY_SAVED is True
-    assert DATA_SAVED is True
+    assert Binary_CSV_Handler.TELEMETRY_SAVED is True
+    assert Binary_CSV_Handler.DATA_SAVED is True
 
 def test_invalid_telemetry_length(data_handler, capsys):
     """Test handling of malformed telemetry packets"""
