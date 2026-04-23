@@ -186,7 +186,7 @@ def test_invalid_telemetry_length(data_handler, capsys):
     
     captured = capsys.readouterr()
     assert "Expected 101 bytes" in captured.out
-    assert not TELEMETRY_SAVED
+    assert not Binary_CSV_Handler.TELEMETRY_SAVED
 
 def test_telemetry_csv_headers(data_handler):
     """Verify CSV headers match the new format"""
