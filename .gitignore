@@ -10,3 +10,6 @@ env
 # python bytecode files
 __pycache__
 *.pyc
+
+# written by backend_tests/test_bin_to_jpeg (test_real_images_with_noise)
+backend_tests/test_bin_to_jpeg/noisy_binary_images/
