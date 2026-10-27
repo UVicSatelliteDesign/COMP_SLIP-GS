@@ -91,7 +91,11 @@ class BinToJPEG:
 
             # Find the start of the JPG image
             try:  # NEW
-                start = req_data.find(jpg_byte_start)
+                # A real JPEG's SOI (FF D8) is followed by a marker (FF); prefer that so a
+                # stray FF D8 in the noise before an image is not taken as its start.
+                start = req_data.find(jpg_byte_start + b'\xff')
+                if start == -1:
+                    start = req_data.find(jpg_byte_start)
                 if start == -1:
                     return False
 
